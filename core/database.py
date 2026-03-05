@@ -7,7 +7,17 @@ DB="data/ingestion.db"
 def connect():
     return sqlite3.connect(DB)
 
-def init_db():
+def init_db(conn.execute("""
+CREATE TABLE IF NOT EXISTS request_metrics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  url TEXT NOT NULL,
+  host TEXT NOT NULL,
+  status TEXT NOT NULL,
+  started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  elapsed_ms INTEGER,
+  bytes INTEGER,
+  content_type TEXT
+):
 
     conn=connect()
 
