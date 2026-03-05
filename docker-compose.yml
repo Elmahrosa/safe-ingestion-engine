@@ -1,0 +1,13 @@
+version: "3"
+
+services:
+
+  scraper:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ingestion_data:/app/data
+
+volumes:
+  ingestion_data:

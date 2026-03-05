@@ -1,0 +1,4 @@
+requests
+ratelimit
+python-dotenv
+streamlit
