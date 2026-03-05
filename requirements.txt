@@ -2,5 +2,12 @@ requests
 ratelimit
 python-dotenv
 streamlit
+pandas
+
 fastapi
-uvicorn
+uvicorn[standard]
+
+celery
+redis
+
+PyYAML
