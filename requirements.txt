@@ -3,3 +3,9 @@ ratelimit
 python-dotenv
 streamlit
 pandas
+fastapi
+uvicorn[standard]
+celery
+redis
+PyYAML
+reportlab
