@@ -2,3 +2,4 @@ requests
 ratelimit
 python-dotenv
 streamlit
+pandas

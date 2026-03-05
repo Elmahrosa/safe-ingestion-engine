@@ -1,13 +1,21 @@
-version: "3"
-
 services:
-
   scraper:
     build: .
     env_file:
       - .env
     volumes:
       - ingestion_data:/app/data
+    command: ["python", "main.py"]
+
+  dashboard:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ingestion_data:/app/data
+    ports:
+      - "8501:8501"
+    command: ["streamlit", "run", "dashboard/app.py", "--server.address=0.0.0.0", "--server.port=8501"]
 
 volumes:
   ingestion_data:
