@@ -1,4 +1,10 @@
 services:
+  redis:
+    image: redis:7
+    container_name: safe-ingestion-redis
+    ports:
+      - "6379:6379"
+
   api:
     build: .
     container_name: safe-ingestion-api
@@ -6,6 +12,8 @@ services:
     ports:
       - "8000:8000"
     env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ingestion_data:/app/data
     depends_on:
@@ -14,8 +22,10 @@ services:
   worker:
     build: .
     container_name: safe-ingestion-worker
-    command: celery -A api.celery_app worker --loglevel=info --concurrency=1
+    command: celery -A api.celery_app:celery worker --loglevel=info --concurrency=1
     env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ingestion_data:/app/data
     depends_on:
@@ -30,12 +40,8 @@ services:
     env_file: .env
     volumes:
       - ingestion_data:/app/data
-
-  redis:
-    image: redis:7-alpine
-    container_name: safe-ingestion-redis
-    ports:
-      - "6379:6379"
+    depends_on:
+      - api
 
 volumes:
   ingestion_data:

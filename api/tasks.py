@@ -1,161 +1,96 @@
 import os
 import time
+import uuid
+import sqlite3
+from pathlib import Path
 from urllib.parse import urlparse
 
-from api.celery_app import celery_app
+import requests
 
-from core.database import init_db, log_audit, log_metric, insert_raw
-from core.policy import PolicyEngine
-from core.compliance import ComplianceGuard
-from collectors.scraper import SafeScraper
-from core.pii import PIIScrubber
+DB_PATH = Path(os.getenv("DB_PATH", "data/ingestion.db"))
 
-# Optional AI PII detection (report only)
-try:
-    from core.pii_ai import detect_pii_ai
-except Exception:
-    detect_pii_ai = None
-
-
-policy_engine = PolicyEngine("policies/policy.yml")
-
-
-def get_user_agent():
-    return os.getenv(
-        "USER_AGENT",
-        "SafeIngestionBot/1.0 (+contact@example.org)"
+def _conn():
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS audit_log(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT,
+      status TEXT,
+      url TEXT,
+      reason TEXT
     )
+    """)
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS request_metrics(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT,
+      url TEXT,
+      host TEXT,
+      status TEXT,
+      elapsed_ms INTEGER,
+      bytes INTEGER
+    )
+    """)
+    conn.commit()
+    return conn
 
+def log_audit(url: str, status: str, reason: str):
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO audit_log(timestamp,status,url,reason) VALUES(datetime('now'),?,?,?)",
+            (status, url, reason),
+        )
+        conn.commit()
 
-@celery_app.task(bind=True)
-def ingest_job(self, url: str, user_name: str, allowlist_patterns: list[str], pii_mode: str = "redact"):
-    """
-    Background ingestion task.
+def log_metrics(url: str, status: str, elapsed_ms: int, size_bytes: int):
+    host = urlparse(url).netloc
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO request_metrics(timestamp,url,host,status,elapsed_ms,bytes) VALUES(datetime('now'),?,?,?,?,?)",
+            (url, host, status, elapsed_ms, size_bytes),
+        )
+        conn.commit()
 
-    Enforces:
-    - Domain policy rules
-    - Allowlist scope
-    - robots.txt compliance
-    - audit logging
-    """
+def policy_check(url: str) -> tuple[bool, str, str]:
+    # SAFE DEFAULT: allow only if not obviously dangerous scheme
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return (False, "BLOCKED_POLICY", "Unsupported URL scheme")
+    return (True, "ALLOWED_POLICY", "Allowed by default policy")
 
-    conn = init_db()
+from api.celery_app import celery
 
-    # -------------------------
-    # 1 Policy Engine
-    # -------------------------
-    policy = policy_engine.decide(url)
-
-    if not policy.allowed:
-        log_audit(conn, url, policy.status, policy.reason)
-        log_metric(conn, url, policy.status, 0, 0, None)
-
-        return {
-            "status": policy.status,
-            "reason": policy.reason
-        }
-
-    # -------------------------
-    # 2 Compliance Guard
-    # -------------------------
-    guard = ComplianceGuard(allowlist_patterns=allowlist_patterns)
-
-    allowed, status, reason = guard.is_permitted(url)
-
+@celery.task(bind=True)
+def ingest_url(self, url: str):
+    allowed, status, reason = policy_check(url)
     if not allowed:
-        log_audit(conn, url, status, reason)
-        log_metric(conn, url, status, 0, 0, None)
-
-        return {
-            "status": status,
-            "reason": reason
-        }
-
-    # -------------------------
-    # 3 Fetch page
-    # -------------------------
-    scraper = SafeScraper(
-        guard,
-        user_agent=get_user_agent()
-    )
+        log_audit(url, status, reason)
+        return {"ok": False, "status": status, "reason": reason}
 
     start = time.time()
-
     try:
-        html, content_type, size_bytes = scraper.fetch(url)
+        r = requests.get(url, timeout=20, headers={"User-Agent": os.getenv("USER_AGENT", "SafeIngestion/1.0")})
         elapsed_ms = int((time.time() - start) * 1000)
+        size_bytes = len(r.content or b"")
+        ok_status = "FETCH_OK" if r.ok else f"HTTP_{r.status_code}"
+        log_metrics(url, ok_status, elapsed_ms, size_bytes)
 
-    except Exception as e:
+        if not r.ok:
+            log_audit(url, "BLOCKED_HTTP", f"HTTP status {r.status_code}")
+            return {"ok": False, "status": "BLOCKED_HTTP", "reason": f"HTTP {r.status_code}"}
 
-        elapsed_ms = int((time.time() - start) * 1000)
-
-        log_audit(conn, url, "FETCH_ERROR", str(e))
-        log_metric(conn, url, "FETCH_ERROR", elapsed_ms, 0, None)
-
+        log_audit(url, "INGESTED", "Fetched successfully")
         return {
-            "status": "FETCH_ERROR",
-            "error": str(e)
+            "ok": True,
+            "url": url,
+            "content_type": r.headers.get("Content-Type", ""),
+            "size_bytes": size_bytes,
+            "latency_ms": elapsed_ms,
+            "audit_ref": str(uuid.uuid4()),
         }
-
-    # -------------------------
-    # 4 Regex PII scrub
-    # -------------------------
-    scrubber = PIIScrubber(
-        mode=pii_mode,
-        salt=os.getenv("PII_SALT", "")
-    )
-
-    scrubbed = scrubber.scrub(html)
-
-    # -------------------------
-    # 5 AI PII detection (report only)
-    # -------------------------
-    ai_entities = []
-
-    if detect_pii_ai:
-        try:
-            ai_result = detect_pii_ai(html)
-            if ai_result.available:
-                ai_entities = ai_result.entities
-        except Exception:
-            pass
-
-    # -------------------------
-    # 6 Store cleaned data
-    # -------------------------
-    insert_raw(
-        conn,
-        source_url=url,
-        content=scrubbed.text,
-        pii_counts=scrubbed.counts,
-        content_type=content_type
-    )
-
-    # -------------------------
-    # 7 Audit + Metrics
-    # -------------------------
-    log_audit(
-        conn,
-        url,
-        "SUCCESS",
-        f"bytes={size_bytes} regex_pii={scrubbed.counts} ai_entities={len(ai_entities)}"
-    )
-
-    log_metric(
-        conn,
-        url,
-        "SUCCESS",
-        elapsed_ms,
-        size_bytes,
-        content_type
-    )
-
-    return {
-        "status": "SUCCESS",
-        "url": url,
-        "content_type": content_type,
-        "size_bytes": size_bytes,
-        "latency_ms": elapsed_ms,
-        "pii_regex_counts": scrubbed.counts,
-        "pii_ai_entities": ai_entities
-    }
+    except Exception as e:
+        elapsed_ms = int((time.time() - start) * 1000)
+        log_metrics(url, "ERROR", elapsed_ms, 0)
+        log_audit(url, "ERROR", str(e))
+        return {"ok": False, "status": "ERROR", "reason": str(e)}
