@@ -229,7 +229,7 @@ Credits are managed via Google Sheets + Apps Script. No separate billing databas
 
 | Plan | Credits | Price | Validity |
 |------|---------|-------|----------|
-| Free Trial | **10 URLs** | $0 | 48 hours |
+| Free Trial | **5 URLs** | $0 | 48 hours |
 | Monthly Starter | 300 URLs | $29/mo | 30 days |
 | Monthly Growth | 900 URLs | $79/mo | 30 days |
 | Yearly Starter | 3,000 URLs | $290/yr | 365 days |
