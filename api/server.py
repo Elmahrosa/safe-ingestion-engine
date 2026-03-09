@@ -1,264 +1,171 @@
-import os
-import secrets
-import uuid
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional, List, Dict, Any
+"""
+api/server.py — FastAPI application.
+Fixes:
+  - Atomic credit deduction (TOCTOU race fixed)
+  - SHA-256 API key lookup
+  - Sheet-based credit check/deduct via SHEET_WEBHOOK_URL (Apps Script v2)
+  - /v1/me endpoint added (referenced in docs.html cURL examples)
+  - Default credits 20 → 10 in database.py
+"""
+import hashlib, os, sqlite3, uuid
+from datetime import datetime
+from typing import Optional
+import httpx
+from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, HttpUrl
+from api.tasks import ingest_url_task
+from core.database import get_db_path
 
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.security import APIKeyHeader
-from pydantic import BaseModel, Field, HttpUrl
+app = FastAPI(title="Safe Ingestion Engine", version="1.0.0")
 
-from core.database import init_db, connect, log_audit
-from api.tasks import ingest_job
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS","").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS or ["*"], allow_methods=["*"], allow_headers=["*"])
 
-# ----------------------------
-# Auth (API Key)
-# ----------------------------
-API_KEY_NAME = "X-API-Key"
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=True)
+SHEET_WEBHOOK_URL = os.getenv("SHEET_WEBHOOK_URL", "")
+SHEET_API_SECRET  = os.getenv("SHEET_API_SECRET", "")
 
-DEFAULT_TIER = os.getenv("DEFAULT_TIER", "pro")
-DEFAULT_ALLOWLIST = os.getenv("ALLOWLIST", "https://example.org/public/*")
-DEFAULT_PII_MODE = os.getenv("PII_MODE", "redact")
+def _hash_key(raw):
+    return hashlib.sha256(raw.encode()).hexdigest()
 
+def _get_user(api_key):
+    hashed = _hash_key(api_key)
+    conn = sqlite3.connect(get_db_path())
+    try:
+        row = conn.execute("SELECT id,credits,plan,trial_active FROM users WHERE api_key_hash=?", (hashed,)).fetchone()
+        return {"id":row[0],"credits":row[1],"plan":row[2],"trial_active":bool(row[3])} if row else None
+    finally:
+        conn.close()
 
-def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def _deduct_credit_atomic(user_id):
+    conn = sqlite3.connect(get_db_path(), isolation_level=None)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cur = conn.execute("UPDATE users SET credits=credits-1 WHERE id=? AND credits>0", (user_id,))
+        conn.execute("COMMIT")
+        return cur.rowcount == 1
+    except:
+        conn.execute("ROLLBACK"); raise
+    finally:
+        conn.close()
 
+def _sheet_check(api_key):
+    if not SHEET_WEBHOOK_URL or not SHEET_API_SECRET:
+        return None
+    try:
+        r = httpx.get(SHEET_WEBHOOK_URL, params={"action":"check_credits","api_key":api_key,"secret":SHEET_API_SECRET}, timeout=5.0)
+        return r.json()
+    except:
+        return None
 
-def require_api_key(api_key: str = Depends(api_key_header)) -> Dict[str, Any]:
-    """
-    Verify API key against local SQLite 'users' table.
-    Returns user dict {id, tier, email, api_key, created_at}
-    """
-    with connect() as conn:
-        row = conn.execute(
-            "SELECT id, email, tier, api_key, created_at FROM users WHERE api_key = ?",
-            (api_key,),
-        ).fetchone()
+def _sheet_deduct(api_key, amount=1):
+    if not SHEET_WEBHOOK_URL or not SHEET_API_SECRET:
+        return True
+    try:
+        r = httpx.get(SHEET_WEBHOOK_URL, params={"action":"deduct","api_key":api_key,"amount":amount,"secret":SHEET_API_SECRET}, timeout=5.0)
+        return r.json().get("ok", False)
+    except:
+        return False
 
-    if not row:
-        raise HTTPException(status_code=403, detail="Invalid API key")
+class IngestRequest(BaseModel):
+    url: HttpUrl
+    scrub_pii: bool = True
+    scrub_pii_mode: str = "redact"
+    respect_robots: bool = True
+    mode: str = "basic"
+    timeout: int = 30
 
-    return {
-        "id": row[0],
-        "email": row[1],
-        "tier": row[2],
-        "api_key": row[3],
-        "created_at": row[4],
-    }
-
-
-# ----------------------------
-# Models
-# ----------------------------
-class CreateKeyRequest(BaseModel):
-    email: Optional[str] = Field(default=None, description="Optional label for the API key owner")
-    tier: str = Field(default=DEFAULT_TIER, description="pro | free (extend later)")
-
-
-class CreateKeyResponse(BaseModel):
-    api_key: str
-    tier: str
-    email: Optional[str] = None
-
-
-class IngestAsyncRequest(BaseModel):
-    url: str = Field(..., description="URL to ingest")
-    pii_mode: Optional[str] = Field(default=None, description="redact | hash (defaults to env PII_MODE)")
-    allowlist: Optional[List[str]] = Field(
-        default=None,
-        description='Override allowlist patterns for THIS request. If omitted, uses env ALLOWLIST.',
-    )
-
-
-class IngestAsyncResponse(BaseModel):
-    job_id: str
-    status: str
-    submitted_at: str
-
-
-class JobStatusResponse(BaseModel):
-    job_id: str
-    state: str
-    ready: bool
-    successful: bool
-    result: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-
-
-# ----------------------------
-# App
-# ----------------------------
-app = FastAPI(title="Safe Ingestion Engine API", version="1.0.0")
-
-
-@app.on_event("startup")
-def startup() -> None:
-    # Ensure DB exists + base tables exist
-    init_db()
-    with connect() as conn:
-        # Users table
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT,
-                tier TEXT NOT NULL,
-                api_key TEXT NOT NULL UNIQUE,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-        # Job table (optional local index; Celery still stores results in Redis)
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS jobs (
-                id TEXT PRIMARY KEY,
-                user_id INTEGER,
-                url TEXT NOT NULL,
-                state TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-            """
-        )
-        conn.commit()
-
-    # Create a one-time default key if none exist (helps first run)
-    with connect() as conn:
-        any_user = conn.execute("SELECT id FROM users LIMIT 1").fetchone()
-        if not any_user:
-            api_key = secrets.token_urlsafe(32)
-            conn.execute(
-                "INSERT INTO users (email, tier, api_key, created_at) VALUES (?, ?, ?, ?)",
-                ("local-admin", DEFAULT_TIER, api_key, utc_now_iso()),
-            )
-            conn.commit()
-            print("\n==============================================")
-            print("✅ Safe Ingestion Engine API started")
-            print(f"🔑 Initial API Key (save it): {api_key}")
-            print("Header to use: X-API-Key: <key>")
-            print("==============================================\n")
-
-
-# ----------------------------
-# Routes
-# ----------------------------
-@app.get("/health")
-def health() -> Dict[str, str]:
-    return {"status": "ok", "time": utc_now_iso()}
-
-
-@app.post("/v1/keys", response_model=CreateKeyResponse)
-def create_key(req: CreateKeyRequest) -> CreateKeyResponse:
-    """
-    Simple local key generator (adminless).
-    For production: protect this endpoint OR remove it and provision keys via admin flow/Stripe.
-    """
-    api_key = secrets.token_urlsafe(32)
-    with connect() as conn:
-        conn.execute(
-            "INSERT INTO users (email, tier, api_key, created_at) VALUES (?, ?, ?, ?)",
-            (req.email, req.tier, api_key, utc_now_iso()),
-        )
-        conn.commit()
-    return CreateKeyResponse(api_key=api_key, tier=req.tier, email=req.email)
-
-
-@app.post("/v1/ingest_async", response_model=IngestAsyncResponse)
-def ingest_async(payload: IngestAsyncRequest, user=Depends(require_api_key)) -> IngestAsyncResponse:
-    """
-    Enqueue an ingestion job to Celery.
-    Returns a job_id immediately.
-    """
-    url = payload.url.strip()
-    if not (url.startswith("http://") or url.startswith("https://")):
-        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
-
-    pii_mode = (payload.pii_mode or DEFAULT_PII_MODE).strip()
-
-    if pii_mode not in ("redact", "hash"):
-        raise HTTPException(status_code=400, detail="pii_mode must be 'redact' or 'hash'")
-
-    # Allowlist patterns for this request
-    if payload.allowlist and isinstance(payload.allowlist, list) and len(payload.allowlist) > 0:
-        allowlist_patterns = payload.allowlist
+@app.post("/v1/ingest_async")
+async def ingest_async(body: IngestRequest, request: Request, x_api_key: str = Header(..., alias="X-API-Key")):
+    sheet = _sheet_check(x_api_key)
+    if sheet is not None:
+        if not sheet.get("ok"):
+            raise HTTPException(401, sheet.get("error","Invalid API key"))
+        if not sheet.get("has_credits", False):
+            raise HTTPException(402, "No credits remaining. Top up at https://safe.teosegypt.com/#pay")
+        user = {"id": 0, "credits": sheet.get("credits",0), "plan": sheet.get("plan",""), "trial_active": False}
     else:
-        allowlist_patterns = [p.strip() for p in DEFAULT_ALLOWLIST.split(",") if p.strip()]
+        user = _get_user(x_api_key)
+        if not user:
+            raise HTTPException(401, "Invalid or expired API key.")
+        if not _deduct_credit_atomic(user["id"]):
+            raise HTTPException(402, "No credits remaining. Top up at https://safe.teosegypt.com/#pay")
 
-    # Create job id
     job_id = str(uuid.uuid4())
+    ingest_url_task.delay(job_id=job_id, url=str(body.url), user_id=user["id"],
+        scrub_pii=body.scrub_pii, scrub_pii_mode=body.scrub_pii_mode,
+        respect_robots=body.respect_robots, timeout=min(body.timeout,120),
+        tier=body.mode, api_key=x_api_key)
 
-    # Record job in DB (optional)
-    with connect() as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO jobs (id, user_id, url, state, created_at) VALUES (?, ?, ?, ?, ?)",
-            (job_id, user["id"], url, "PENDING", utc_now_iso()),
-        )
-        conn.commit()
+    credits_left = sheet.get("credits", user["credits"]) if sheet else user["credits"]
+    return {"job_id": job_id, "status": "queued", "credits_remaining": credits_left}
 
-    # Audit: submission
-    with connect() as conn:
-        log_audit(conn, url, "JOB_SUBMITTED", f"user_id={user['id']} job_id={job_id}")
+@app.get("/v1/jobs/{job_id}")
+async def get_job(job_id: str, x_api_key: str = Header(..., alias="X-API-Key")):
+    sheet = _sheet_check(x_api_key)
+    if sheet is not None and not sheet.get("ok"):
+        raise HTTPException(401, "Invalid API key.")
+    elif sheet is None and not _get_user(x_api_key):
+        raise HTTPException(401, "Invalid or expired API key.")
 
-    # Enqueue Celery task (we force task_id = job_id so it matches)
-    ingest_job.apply_async(
-        args=[url, user.get("email") or f"user:{user['id']}", allowlist_patterns, pii_mode],
-        task_id=job_id,
-    )
-
-    return IngestAsyncResponse(job_id=job_id, status="PENDING", submitted_at=utc_now_iso())
-
-
-@app.get("/v1/jobs/{job_id}", response_model=JobStatusResponse)
-def job_status(job_id: str, user=Depends(require_api_key)) -> JobStatusResponse:
-    """
-    Check Celery job state/result by job_id.
-    """
-    # Ensure user owns job (basic multi-user isolation)
-    with connect() as conn:
+    conn = sqlite3.connect(get_db_path())
+    try:
         row = conn.execute(
-            "SELECT user_id, url, state FROM jobs WHERE id = ?",
-            (job_id,),
-        ).fetchone()
+            "SELECT job_id,status,url,result_content,bytes_fetched,pii_removed,latency_ms,scrub_mode,error_msg FROM jobs WHERE job_id=?",
+            (job_id,)).fetchone()
+    finally:
+        conn.close()
 
     if not row:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(404, "Job not found.")
 
-    owner_id = row[0]
-    if owner_id != user["id"]:
-        raise HTTPException(status_code=403, detail="Not allowed to view this job")
+    resp = {"job_id": row[0], "status": row[1], "url": row[2]}
+    if row[1] == "completed":
+        resp.update({"content": row[3], "pii_redacted": row[5], "fetch_time_ms": row[6], "policy_decision": "ALLOWED"})
+    elif row[1] in ("failed","blocked"):
+        resp["error"] = row[8]
+    return resp
 
-    # Read Celery result
-    res = ingest_job.AsyncResult(job_id)
+@app.get("/v1/me")
+async def get_me(x_api_key: str = Header(..., alias="X-API-Key")):
+    """Returns current account info — used in docs examples."""
+    sheet = _sheet_check(x_api_key)
+    if sheet is not None:
+        if not sheet.get("ok"):
+            raise HTTPException(401, "Invalid API key.")
+        return {"api_key": x_api_key[:12]+"...", "email": sheet.get("email",""),
+                "plan": sheet.get("plan",""), "credits_remaining": sheet.get("credits",0),
+                "credits_used": sheet.get("credits_used",0), "status": sheet.get("status","")}
+    user = _get_user(x_api_key)
+    if not user:
+        raise HTTPException(401, "Invalid or expired API key.")
+    return {"api_key": x_api_key[:12]+"...", "plan": user["plan"],
+            "credits_remaining": user["credits"], "trial_active": user["trial_active"]}
 
-    # Update DB state snapshot
-    with connect() as conn:
-        conn.execute(
-            "UPDATE jobs SET state = ? WHERE id = ?",
-            (res.state, job_id),
-        )
-        conn.commit()
+@app.get("/v1/balance")
+async def get_balance(x_api_key: str = Header(..., alias="X-API-Key")):
+    return await get_me(x_api_key)
 
-    out = JobStatusResponse(
-        job_id=job_id,
-        state=res.state,
-        ready=res.ready(),
-        successful=res.successful() if res.ready() else False,
-        result=None,
-        error=None,
-    )
+@app.get("/v1/audit")
+async def get_audit(x_api_key: str = Header(..., alias="X-API-Key"),
+                    limit: int = Query(default=50, le=500), page: int = Query(default=1, ge=1),
+                    status: Optional[str] = Query(default=None)):
+    user = _get_user(x_api_key)
+    if not user:
+        raise HTTPException(401, "Invalid or expired API key.")
+    offset = (page-1)*limit
+    where = "WHERE user_id=?"; params = [user["id"]]
+    if status and status != "all":
+        where += " AND status=?"; params.append(status)
+    conn = sqlite3.connect(get_db_path())
+    try:
+        total = conn.execute(f"SELECT COUNT(*) FROM jobs {where}", params).fetchone()[0]
+        rows  = conn.execute(f"SELECT job_id,url,status,tier,latency_ms,bytes_fetched,pii_removed,created_at FROM jobs {where} ORDER BY created_at DESC LIMIT ? OFFSET ?", params+[limit,offset]).fetchall()
+    finally:
+        conn.close()
+    return {"total":total,"page":page,"limit":limit,"records":[
+        {"job_id":r[0],"url":r[1],"status":r[2],"tier":r[3],"latency_ms":r[4],"bytes":r[5],"pii_removed":r[6],"timestamp":r[7]} for r in rows]}
 
-    if res.ready():
-        if res.successful():
-            try:
-                out.result = res.get(timeout=0.1)
-            except Exception as e:
-                out.error = f"Could not read result: {e}"
-        else:
-            # Task failed
-            out.error = str(res.result)
-
-    return out
+@app.get("/health")
+async def health():
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}

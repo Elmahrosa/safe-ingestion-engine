@@ -1,0 +1,29 @@
+# policies/rules.yaml
+# Per-domain allow/deny rules + crawl budgets enforced by PolicyEngine.
+# Restart the worker after editing this file.
+
+global:
+  crawl_budget: 0   # 0 = unlimited (default). Set per-domain below to override.
+  respect_robots: true
+
+domains:
+  # Example: block a domain entirely
+  # example-blocked.com:
+  #   action: deny
+  #   reason: "Domain blacklisted for ToS violations"
+
+  # Example: allow but with crawl budget
+  # news-site.com:
+  #   action: allow
+  #   crawl_budget: 100   # max 100 URLs/day
+  #   deny_paths:
+  #     - /private/
+  #     - /members/
+
+  # Example: block specific paths on an allowed domain
+  # example.com:
+  #   action: allow
+  #   deny_paths:
+  #     - /admin
+  #     - /internal
+  #     - /api/private

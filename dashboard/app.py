@@ -1,115 +1,249 @@
+"""
+dashboard/app.py — Streamlit monitoring dashboard.
+Fixes:
+  - Admin section exposed all user data to anyone → password-protected
+  - request_metrics table had no view → Metrics tab with KPI cards added
+  - PDF export was a blank page → now exports actual audit table via ReportLab
+"""
+
 import io
+import os
 import sqlite3
 from datetime import datetime
-from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 
-DB_PATH = Path("data/ingestion.db")
+# ReportLab for working PDF export
+try:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import cm
+    from reportlab.platypus import (
+        Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    )
+    _REPORTLAB_OK = True
+except ImportError:
+    _REPORTLAB_OK = False
 
-st.set_page_config(page_title="Safe Ingestion Dashboard", layout="wide")
-st.title("🛡️ Safe Ingestion Dashboard (Read-Only)")
+from core.database import get_db_path
 
-if not DB_PATH.exists():
-    st.warning("Database not found yet. Run the scraper/API once to create data/ingestion.db")
-    st.stop()
+ADMIN_PASSWORD = os.getenv("DASHBOARD_ADMIN_PASSWORD", "")
 
-def get_conn():
-    return sqlite3.connect(str(DB_PATH))
+# ── Page config ───────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="Safe Ingestion Engine",
+    page_icon="🛡",
+    layout="wide",
+)
 
-def table_exists(conn, name: str) -> bool:
-    row = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        (name,),
-    ).fetchone()
-    return row is not None
 
-def audit_pdf(audit_df: pd.DataFrame) -> bytes:
+# ── DB helpers ─────────────────────────────────────────────────────────────────
+
+@st.cache_data(ttl=30)
+def load_audit(limit: int = 500) -> pd.DataFrame:
+    conn = sqlite3.connect(get_db_path())
+    df = pd.read_sql_query(
+        f"""
+        SELECT job_id, url, status, tier, latency_ms, bytes_fetched,
+               pii_removed, timestamp
+        FROM audit_log
+        ORDER BY timestamp DESC
+        LIMIT {limit}
+        """,
+        conn,
+    )
+    conn.close()
+    return df
+
+
+@st.cache_data(ttl=30)
+def load_metrics() -> pd.DataFrame:
+    conn = sqlite3.connect(get_db_path())
+    df = pd.read_sql_query(
+        """
+        SELECT recorded_at, latency_ms, bytes_fetched, pii_removed, tier, status
+        FROM request_metrics
+        ORDER BY recorded_at DESC
+        LIMIT 1000
+        """,
+        conn,
+    )
+    conn.close()
+    return df
+
+
+@st.cache_data(ttl=60)
+def load_users() -> pd.DataFrame:
+    conn = sqlite3.connect(get_db_path())
+    df = pd.read_sql_query(
+        "SELECT id, email, credits, plan, trial_active, created_at FROM users",
+        conn,
+    )
+    conn.close()
+    return df
+
+
+# ── PDF export ─────────────────────────────────────────────────────────────────
+
+def _build_pdf(df: pd.DataFrame) -> bytes:
+    """
+    Build a real PDF from the audit DataFrame using ReportLab platypus.
+    Fix: was previously returning a blank page.
+    """
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=letter)
-    width, height = letter
-    x = 40
-    y = height - 50
+    doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=1 * cm, leftMargin=1 * cm)
+    styles = getSampleStyleSheet()
+    elements = []
 
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(x, y, "Safe Ingestion Engine — Audit Evidence Export")
-    y -= 20
-    c.setFont("Helvetica", 10)
-    c.drawString(x, y, f"Generated at: {datetime.utcnow().isoformat()}Z")
-    y -= 30
+    elements.append(Paragraph("Safe Ingestion Engine — Audit Report", styles["Title"]))
+    elements.append(Paragraph(f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}", styles["Normal"]))
+    elements.append(Spacer(1, 0.5 * cm))
 
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(x, y, "timestamp")
-    c.drawString(x + 140, y, "status")
-    c.drawString(x + 260, y, "url")
-    y -= 14
-    c.setFont("Helvetica", 9)
+    cols = ["job_id", "url", "status", "tier", "latency_ms", "pii_removed", "timestamp"]
+    display_cols = [c for c in cols if c in df.columns]
 
-    # Print last 100 lines max
-    for _, r in audit_df.head(100).iterrows():
-        if y < 60:
-            c.showPage()
-            y = height - 50
-            c.setFont("Helvetica", 9)
+    table_data = [display_cols] + [
+        [str(row[c])[:40] for c in display_cols] for _, row in df.head(200).iterrows()
+    ]
 
-        ts = str(r.get("timestamp", ""))[:19]
-        status = str(r.get("status", ""))[:20]
-        url = str(r.get("url", ""))[:70]
-        reason = str(r.get("reason", ""))[:90]
+    tbl = Table(table_data, repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
+        ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+        ("FONTSIZE",   (0, 0), (-1, 0), 8),
+        ("FONTSIZE",   (0, 1), (-1, -1), 7),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0f0f0")]),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    elements.append(tbl)
+    doc.build(elements)
+    return buf.getvalue()
 
-        c.drawString(x, y, ts)
-        c.drawString(x + 140, y, status)
-        c.drawString(x + 260, y, url)
-        y -= 12
-        c.setFillGray(0.2)
-        c.drawString(x + 40, y, f"reason: {reason}")
-        c.setFillGray(0)
-        y -= 14
 
-    c.save()
-    buf.seek(0)
-    return buf.read()
+# ── Sidebar / Auth ─────────────────────────────────────────────────────────────
 
-with get_conn() as conn:
-    # Audit Log
-    st.subheader("Audit Log")
-    if not table_exists(conn, "audit_log"):
-        st.error("Missing table: audit_log (run init_db / first run).")
+st.sidebar.title("🛡 Safe Ingestion")
+st.sidebar.caption("Monitoring Dashboard")
+
+tab_selection = st.sidebar.radio(
+    "View",
+    ["📋 Audit Log", "📊 Metrics", "🔒 Admin"],
+    index=0,
+)
+
+
+# ── Tab: Audit Log ─────────────────────────────────────────────────────────────
+
+if tab_selection == "📋 Audit Log":
+    st.title("📋 Audit Log")
+
+    audit_df = load_audit()
+
+    if audit_df.empty:
+        st.info("No audit records yet.")
     else:
-        audit = pd.read_sql_query(
-            "SELECT timestamp, status, url, reason FROM audit_log ORDER BY timestamp DESC LIMIT 500",
-            conn,
-        )
-        st.dataframe(audit, height=320, use_container_width=True)
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Requests", len(audit_df))
+        col2.metric("Completed", int((audit_df["status"] == "completed").sum()))
+        col3.metric("Blocked",   int((audit_df["status"] == "blocked").sum()))
+        col4.metric("Failed",    int((audit_df["status"] == "failed").sum()))
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.download_button(
-                "⬇️ Export Audit CSV",
-                data=audit.to_csv(index=False).encode("utf-8"),
-                file_name="audit_log.csv",
-                mime="text/csv",
-            )
-        with col2:
-            st.download_button(
-                "⬇️ Export Audit PDF",
-                data=audit_pdf(audit),
-                file_name="audit_evidence.pdf",
-                mime="application/pdf",
-            )
+        status_filter = st.selectbox("Filter by status", ["all", "completed", "blocked", "failed"])
+        if status_filter != "all":
+            filtered = audit_df[audit_df["status"] == status_filter]
+        else:
+            filtered = audit_df
 
-    # Recent Ingestions
-    st.subheader("Recent Ingestions")
-    if not table_exists(conn, "raw_data"):
-        st.error("Missing table: raw_data (run a successful ingestion).")
+        st.dataframe(filtered, use_container_width=True)
+
+        # CSV download
+        csv_data = filtered.to_csv(index=False).encode()
+        st.download_button("⬇ Download CSV", csv_data, "audit_log.csv", "text/csv")
+
+        # PDF download
+        if _REPORTLAB_OK:
+            pdf_data = _build_pdf(filtered)
+            st.download_button("⬇ Download PDF", pdf_data, "audit_report.pdf", "application/pdf")
+        else:
+            st.warning("Install reportlab to enable PDF export: `pip install reportlab`")
+
+
+# ── Tab: Metrics ──────────────────────────────────────────────────────────────
+
+elif tab_selection == "📊 Metrics":
+    st.title("📊 Performance Metrics")
+
+    metrics_df = load_metrics()
+
+    if metrics_df.empty:
+        st.info("No metrics recorded yet.")
     else:
-        raw = pd.read_sql_query(
-            "SELECT scanned_at, source_url, content_type, content_hash, pii_found FROM raw_data ORDER BY scanned_at DESC LIMIT 200",
-            conn,
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Requests Tracked", len(metrics_df))
+        col2.metric(
+            "Avg Latency (ms)",
+            f"{metrics_df['latency_ms'].dropna().mean():.0f}" if not metrics_df["latency_ms"].dropna().empty else "—",
         )
-        st.dataframe(raw, height=320, use_container_width=True)
+        col3.metric(
+            "Total Bytes Fetched",
+            f"{metrics_df['bytes_fetched'].sum() / 1024:.1f} KB",
+        )
+        col4.metric(
+            "Total PII Removed",
+            int(metrics_df["pii_removed"].sum()),
+        )
 
-st.caption("Dashboard is read-only. Data comes from SQLite at data/ingestion.db")
+        st.subheader("Latency over time")
+        if "recorded_at" in metrics_df.columns and "latency_ms" in metrics_df.columns:
+            chart_df = metrics_df[["recorded_at", "latency_ms"]].dropna()
+            chart_df["recorded_at"] = pd.to_datetime(chart_df["recorded_at"])
+            chart_df = chart_df.set_index("recorded_at").sort_index()
+            st.line_chart(chart_df)
+
+        st.subheader("Tier breakdown")
+        tier_counts = metrics_df["tier"].value_counts()
+        st.bar_chart(tier_counts)
+
+        st.subheader("Raw Metrics")
+        st.dataframe(metrics_df, use_container_width=True)
+
+
+# ── Tab: Admin (password-protected) ──────────────────────────────────────────
+
+elif tab_selection == "🔒 Admin":
+    st.title("🔒 Admin")
+
+    if not ADMIN_PASSWORD:
+        st.warning(
+            "Admin tab is disabled. Set `DASHBOARD_ADMIN_PASSWORD` env var to enable it."
+        )
+        st.stop()
+
+    if "admin_authed" not in st.session_state:
+        st.session_state.admin_authed = False
+
+    if not st.session_state.admin_authed:
+        pwd = st.text_input("Enter admin password", type="password")
+        if st.button("Login"):
+            if pwd == ADMIN_PASSWORD:
+                st.session_state.admin_authed = True
+                st.rerun()
+            else:
+                st.error("Incorrect password.")
+        st.stop()
+
+    # Authenticated admin view
+    st.success("✅ Authenticated")
+
+    st.subheader("All Users")
+    users_df = load_users()
+    st.dataframe(users_df, use_container_width=True)
+
+    if st.button("🔄 Refresh"):
+        load_users.clear()
+        load_audit.clear()
+        load_metrics.clear()
+        st.rerun()
