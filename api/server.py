@@ -47,8 +47,9 @@ def _deduct_credit_atomic(user_id):
         cur = conn.execute("UPDATE users SET credits=credits-1 WHERE id=? AND credits>0", (user_id,))
         conn.execute("COMMIT")
         return cur.rowcount == 1
-    except:
-        conn.execute("ROLLBACK"); raise
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
     finally:
         conn.close()
 
@@ -58,7 +59,7 @@ def _sheet_check(api_key):
     try:
         r = httpx.get(SHEET_WEBHOOK_URL, params={"action":"check_credits","api_key":api_key,"secret":SHEET_API_SECRET}, timeout=5.0)
         return r.json()
-    except:
+    except Exception:
         return None
 
 def _sheet_deduct(api_key, amount=1):
@@ -67,7 +68,7 @@ def _sheet_deduct(api_key, amount=1):
     try:
         r = httpx.get(SHEET_WEBHOOK_URL, params={"action":"deduct","api_key":api_key,"amount":amount,"secret":SHEET_API_SECRET}, timeout=5.0)
         return r.json().get("ok", False)
-    except:
+    except Exception:
         return False
 
 class IngestRequest(BaseModel):
@@ -157,9 +158,11 @@ async def get_audit(x_api_key: str = Header(..., alias="X-API-Key"),
     if not user:
         raise HTTPException(401, "Invalid or expired API key.")
     offset = (page-1)*limit
-    where = "WHERE user_id=?"; params = [user["id"]]
+    where = "WHERE user_id=?"
+    params = [user["id"]]
     if status and status != "all":
-        where += " AND status=?"; params.append(status)
+        where += " AND status=?"
+        params.append(status)
     conn = sqlite3.connect(get_db_path())
     try:
         total = conn.execute(f"SELECT COUNT(*) FROM jobs {where}", params).fetchone()[0]

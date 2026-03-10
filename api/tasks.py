@@ -36,7 +36,7 @@ def _sheet_deduct(api_key, amount=1):
         r = httpx.get(SHEET_WEBHOOK_URL,
             params={"action":"deduct","api_key":api_key,"amount":amount,"secret":SHEET_API_SECRET}, timeout=5.0)
         return r.json().get("ok", False)
-    except:
+    except Exception:
         return False
 
 @celery_app.task(bind=True, name="ingest_url")
@@ -87,7 +87,7 @@ def ingest_url_task(self, job_id, url, user_id, scrub_pii=True, scrub_pii_mode="
         try:
             _update_job(conn, job_id, status="failed", error_msg=str(exc), updated_at=datetime.utcnow().isoformat())
             log_audit(conn, job_id=job_id, user_id=user_id, url=url, status="failed", tier=tier, reason=str(exc))
-        except:
+        except Exception:
             pass
         raise self.retry(exc=exc, countdown=5, max_retries=2)
     finally:
