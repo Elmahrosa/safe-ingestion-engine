@@ -8,11 +8,8 @@ Fixes:
 
 import logging
 import os
-import time
-import warnings
 from collections import defaultdict
 from datetime import date
-from typing import Optional
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 

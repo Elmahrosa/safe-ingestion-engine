@@ -7,7 +7,10 @@ Fixes:
   - /v1/me endpoint added (referenced in docs.html cURL examples)
   - Default credits 20 → 10 in database.py
 """
-import hashlib, os, sqlite3, uuid
+import hashlib
+import os
+import sqlite3
+import uuid
 from datetime import datetime
 from typing import Optional
 import httpx

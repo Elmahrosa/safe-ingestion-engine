@@ -5,7 +5,8 @@ Fixes:
   - Correct imports of log_audit/log_metrics/insert_raw
   - Sheet deduct called on job completion (api_key param added)
 """
-import os, sqlite3, time
+import os
+import sqlite3
 from datetime import datetime
 import httpx
 from celery import Celery

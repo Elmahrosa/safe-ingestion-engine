@@ -1,5 +1,4 @@
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Header
-import os
 import uuid
 from main import run_ingestion
 from core.database import connect

@@ -5,7 +5,6 @@ FIX: Default trial credits changed from 20 → 10 to match Apps Script + website
 import os
 import sqlite3
 from datetime import datetime
-from typing import Optional
 
 DATA_DIR = os.getenv("DATA_DIR", "data")
 DB_NAME  = "safe_ingestion.db"
