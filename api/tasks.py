@@ -3,7 +3,9 @@ api/tasks.py — Celery background tasks.
 Fixes:
   - DB connection leak (try/finally)
   - Correct imports of log_audit/log_metrics/insert_raw
-  - Sheet deduct called on job completion (api_key param added)
+  - REMOVED: _sheet_deduct() call on job completion — credit is already deducted
+    atomically in server.py before the job is queued. Calling it here too was
+    charging users 2 credits per request.
 """
 import os
 import sqlite3
@@ -28,16 +30,6 @@ def _update_job(conn, job_id, **fields):
     set_clause = ", ".join(f"{k}=?" for k in fields)
     conn.execute(f"UPDATE jobs SET {set_clause} WHERE job_id=?", list(fields.values())+[job_id])
     conn.commit()
-
-def _sheet_deduct(api_key, amount=1):
-    if not SHEET_WEBHOOK_URL or not SHEET_API_SECRET or not api_key:
-        return True
-    try:
-        r = httpx.get(SHEET_WEBHOOK_URL,
-            params={"action":"deduct","api_key":api_key,"amount":amount,"secret":SHEET_API_SECRET}, timeout=5.0)
-        return r.json().get("ok", False)
-    except Exception:
-        return False
 
 @celery_app.task(bind=True, name="ingest_url")
 def ingest_url_task(self, job_id, url, user_id, scrub_pii=True, scrub_pii_mode="redact",
@@ -79,9 +71,6 @@ def ingest_url_task(self, job_id, url, user_id, scrub_pii=True, scrub_pii_mode="
             tier=tier, latency_ms=latency_ms, bytes_fetched=bytes_fetched, pii_removed=pii_removed)
         log_metrics(conn, job_id=job_id, user_id=user_id, latency_ms=latency_ms,
             bytes_fetched=bytes_fetched, pii_removed=pii_removed, tier=tier, status="completed")
-
-        # Deduct credit in Sheet only on success
-        _sheet_deduct(api_key, amount=1)
 
     except Exception as exc:
         try:
