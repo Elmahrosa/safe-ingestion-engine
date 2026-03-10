@@ -12,7 +12,7 @@
 **Compliance-first infrastructure for safe web data ingestion**
 
 🌐 **Live:** https://safe.teosegypt.com &nbsp;·&nbsp; 📄 **Docs:** https://safe.teosegypt.com/docs.html
-⏱ **10 free URLs — 48h trial — no card, no KYC, no auto-billing**
+⏱ **5 free URLs — 48h trial — no card, no KYC, no auto-billing**
 📬 **Contact:** aams1969 at gmail dot com
 
 </div>
@@ -64,7 +64,7 @@ Celery Worker (api/tasks.py)
               └── audit evidence · metrics · CSV / PDF export
 
 Google Apps Script (billing)
-        ├── Trial signup → 10 credits emailed instantly
+        ├── Trial signup → 5 credits emailed instantly
         ├── USDC payment → credits added automatically
         └── Credit check / deduct API for FastAPI middleware
 ```
@@ -229,7 +229,7 @@ Credits are managed via Google Sheets + Apps Script. No separate billing databas
 
 | Plan | Credits | Price | Validity |
 |------|---------|-------|----------|
-| Free Trial | **10 URLs** | $0 | 48 hours |
+| Free Trial | **5 URLs** | $0 | 48 hours |
 | Monthly Starter | 300 URLs | $29/mo | 30 days |
 | Monthly Growth | 900 URLs | $79/mo | 30 days |
 | Yearly Starter | 3,000 URLs | $290/yr | 365 days |
