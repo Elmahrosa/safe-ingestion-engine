@@ -22,5 +22,7 @@ def detect_pii_ai(text: str) -> AIPiiResult:
             for r in results
         ]
         return AIPiiResult(entities=ents, available=True)
-    except Exception as e:
+    except ImportError:
+        return AIPiiResult(entities=[], available=False, error="Presidio not installed")
+    except Exception as e: # Catch other potential errors during analysis
         return AIPiiResult(entities=[], available=False, error=f"{type(e).__name__}: {e}")
