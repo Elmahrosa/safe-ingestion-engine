@@ -54,7 +54,7 @@ def init_db() -> None:
                 latency_ms    INTEGER,
                 bytes_fetched INTEGER,
                 pii_removed   INTEGER DEFAULT 0,
-                timestamp     TEXT    NOT NULL DEFAULT (datetime('now'))
+                timestamp     TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS request_metrics (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
