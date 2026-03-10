@@ -79,16 +79,15 @@ class SafeScraper:
             raise ValueError(f"Only http/https schemes are allowed, got: {parsed.scheme!r}")
 
         try:
-            resolved_ip = socket.gethostbyname(hostname)
+            resolved_ips = socket.gethostbyname_ex(hostname)[2]
         except socket.gaierror as exc:
             raise ValueError(f"DNS resolution failed for {hostname!r}: {exc}") from exc
-
-        addr = ipaddress.ip_address(resolved_ip)
-        for network in _BLOCKED_NETWORKS:
-            if addr in network:
-                raise SSRFBlockedError(
-                    f"Blocked: {hostname!r} resolves to private IP {resolved_ip} ({network})"
-                )
+        for resolved_ip in resolved_ips:
+            addr = ipaddress.ip_address(resolved_ip)
+            for network in _BLOCKED_NETWORKS:
+                if addr in network:
+                    raise SSRFBlockedError(
+                        f"Blocked: {hostname!r} resolves to private IP {resolved_ip} ({network})")
 
     # ── Core fetch ────────────────────────────────────────────────────────────
 
