@@ -11,7 +11,7 @@ import os
 import re
 from typing import Tuple
 
-PII_SALT = os.getenv("PII_SALT", "changeme-set-in-env")
+PII_SALT = os.getenv("PII_SALT")
 
 # ── PII Patterns ─────────────────────────────────────────────────────────────
 # Ordered from most-specific to least-specific to avoid partial matches.
