@@ -2,7 +2,7 @@
 
 <br/>
 
-<img src="https://safe.teosegypt.com/logo.png" width="88" alt="Safe Ingestion Engine Shield Logo"/>
+<img src="https://raw.githubusercontent.com/Elmahrosa/safe-ingestion-engine/main/logo.png" width="100" alt="Safe Ingestion Engine"/>
 
 <br/><br/>
 
