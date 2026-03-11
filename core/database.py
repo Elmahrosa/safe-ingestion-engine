@@ -1,37 +1,25 @@
 """
 core/database.py — SQLite schema bootstrap + helper functions.
-
-FIXES APPLIED:
-  1. datetime('now') used in TWO places (jobs + request_metrics + raw_content) — all replaced with CURRENT_TIMESTAMP
-  2. users.created_at and users.updated_at had no DEFAULT — application code must supply them; added NOT NULL enforcement comment
-  3. PIIScrubber._replace() uses hmac.new() which does NOT EXIST — correct call is hmac.new() → actually this is in pii.py, fixed there
-  4. No connection pooling or WAL mode enforcement at connect-time — added helper get_conn()
-  5. log_audit uses datetime.utcnow().isoformat() — inconsistent with DEFAULT CURRENT_TIMESTAMP (UTC) in schema; standardized
 """
-import os
 import sqlite3
 from datetime import datetime, timezone
-
-DATA_DIR = os.getenv("DATA_DIR", "data")
-DB_NAME  = "safe_ingestion.db"
-
+from core.config import settings  # Import centralized settings
 
 def get_db_path() -> str:
-    os.makedirs(DATA_DIR, exist_ok=True)
-    return os.path.join(DATA_DIR, DB_NAME)
-
+    # Use settings.data_dir instead of os.getenv
+    import os
+    os.makedirs(settings.data_dir, exist_ok=True)
+    return os.path.join(settings.data_dir, "safe_ingestion.db")
 
 def get_conn() -> sqlite3.Connection:
-    """Return a WAL-mode connection. Always use this instead of sqlite3.connect() directly."""
+    """Return a WAL-mode connection."""
     conn = sqlite3.connect(get_db_path())
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
-
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
 
 def init_db() -> None:
     conn = get_conn()
@@ -59,7 +47,6 @@ def init_db() -> None:
                 scrub_mode      TEXT,
                 tier            TEXT    DEFAULT 'basic',
                 error_msg       TEXT,
-                -- FIX: datetime('now') is not valid SQLite → use strftime or CURRENT_TIMESTAMP
                 created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
                 updated_at      TEXT
             );
@@ -85,7 +72,6 @@ def init_db() -> None:
                 pii_removed   INTEGER DEFAULT 0,
                 tier          TEXT,
                 status        TEXT,
-                -- FIX: datetime('now') replaced
                 recorded_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
             );
             CREATE TABLE IF NOT EXISTS raw_content (
@@ -94,7 +80,6 @@ def init_db() -> None:
                 user_id    INTEGER NOT NULL,
                 url        TEXT    NOT NULL,
                 content    TEXT,
-                -- FIX: datetime('now') replaced
                 stored_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
             );
             CREATE INDEX IF NOT EXISTS idx_jobs_user_id    ON jobs(user_id);
@@ -104,7 +89,6 @@ def init_db() -> None:
         conn.commit()
     finally:
         conn.close()
-
 
 def log_audit(conn, *, job_id, user_id, url, status, tier="basic",
               reason=None, latency_ms=None, bytes_fetched=None, pii_removed=0):
@@ -117,7 +101,6 @@ def log_audit(conn, *, job_id, user_id, url, status, tier="basic",
     )
     conn.commit()
 
-
 def log_metrics(conn, *, job_id, user_id, latency_ms=None, bytes_fetched=None,
                 pii_removed=0, tier="basic", status="completed"):
     conn.execute(
@@ -128,7 +111,6 @@ def log_metrics(conn, *, job_id, user_id, latency_ms=None, bytes_fetched=None,
          tier, status, _now_iso()),
     )
     conn.commit()
-
 
 def insert_raw(conn, *, job_id, user_id, url, content):
     conn.execute(
