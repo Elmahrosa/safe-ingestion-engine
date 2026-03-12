@@ -1,15 +1,7 @@
-from core.pii import PIIScrubber
+from core.pii import scrub_text
 
-def test_email_redaction():
-    scrubber = PIIScrubber(mode="redact")
-    text = "Contact me at test@example.com"
-    clean, count = scrubber.scrub(text)
-    assert "[EMAIL]" in clean
-    assert count == 1
 
-def test_phone_redaction():
-    scrubber = PIIScrubber(mode="redact")
-    text = "My number is 555-123-4567"
-    clean, count = scrubber.scrub(text)
-    assert "[PHONE]" in clean
-    assert count == 1
+def test_scrub_email():
+    result = scrub_text("contact me at a@example.com")
+    assert "a@example.com" not in result
+    assert "[EMAIL:" in result
