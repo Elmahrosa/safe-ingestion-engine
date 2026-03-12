@@ -9,3 +9,5 @@ celery
 redis
 PyYAML
 reportlab
+presidio-analyzer
+presidio-anonymizer
