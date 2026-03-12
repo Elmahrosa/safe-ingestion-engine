@@ -1,7 +1,7 @@
 SAFE INGESTION ENGINE — COMMERCIAL SOURCE LICENSE
-Version 1.0  |  Effective: 2025
+Version 1.1  |  Effective: March 2026
 
-Copyright (c) 2025 Elmahrosa / Teos Egypt. All rights reserved.
+Copyright (c) 2026 Elmahrosa International. All rights reserved.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. DEFINITIONS
@@ -10,19 +10,22 @@ Copyright (c) 2025 Elmahrosa / Teos Egypt. All rights reserved.
 "Software" means the Safe Ingestion Engine source code, binaries, documentation,
 configuration files, and all associated materials in this repository.
 
-"Licensor" means Elmahrosa / Teos Egypt.
+"Licensor" means Elmahrosa International (teosegypt.com), Egypt.
 
 "Licensee" means any individual or legal entity that has paid the Access Fee and
 received a written License Key from the Licensor.
 
-"Access Fee" means the one-time payment of USD $5.00 (five US dollars) required
-to obtain a License Key granting rights under this License.
+"Access Fee" means the one-time payment required to obtain a License Key granting
+rights under this License. Current fee: https://safe.teosegypt.com/license
+
+"Hosted API" means the managed service operated by the Licensor at
+https://safe.teosegypt.com, governed separately by the Terms of Service.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 2. ACCESS AND LICENSE GRANT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-To obtain a license:
+To obtain a self-hosting license:
   1. Pay the Access Fee at: https://safe.teosegypt.com/license
   2. You will receive a License Key by email within 24 hours.
   3. Keep your License Key confidential. Do not share it.
@@ -30,14 +33,17 @@ To obtain a license:
 Upon receipt of a valid License Key, the Licensor grants the Licensee a
 non-exclusive, non-transferable, non-sublicensable license to:
 
-  (a) PERSONAL / INTERNAL USE: Use and run the Software for internal business
-      purposes on an unlimited number of machines owned or controlled by the
-      Licensee.
+  (a) INTERNAL USE: Use and run the Software for internal business purposes
+      on an unlimited number of machines owned or controlled by the Licensee.
 
   (b) MODIFICATION: Modify the Software for internal use only.
 
   (c) SELF-HOSTING: Deploy the Software on infrastructure controlled by the
       Licensee to serve the Licensee's own end-users.
+
+Note: Use of the Hosted API at https://safe.teosegypt.com does not require
+a License Key and is governed by the Terms of Service at
+https://safe.teosegypt.com/legal.html
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 3. RESTRICTIONS
@@ -52,7 +58,8 @@ a Licensee MAY NOT:
   (b) Offer the Software as a hosted or managed service to third parties
       (SaaS resale) without a separate SaaS Resale License.
 
-  (c) Remove or obscure any copyright, trademark, or attribution notices.
+  (c) Remove or obscure any copyright, trademark, or attribution notices
+      in the source code, documentation, or dashboard UI.
 
   (d) Use the Licensor's name, logo, or trademarks to endorse any product
       derived from this Software without prior written permission.
@@ -75,13 +82,28 @@ For resale, OEM embedding, white-labeling, or high-volume deployment,
 contact: license@teosegypt.com
 
 Custom licensing terms are available for:
-  - SaaS resellers
+  - SaaS resellers and white-label operators
   - OEM / embedded deployments
-  - Government and regulated-industry procurement
+  - Government and regulated-industry procurement (GDPR, HIPAA environments)
   - Acquisition / M&A due diligence
+  - Enterprise multi-team deployments
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-6. DISCLAIMER OF WARRANTIES
+6. COMPLIANCE AND DATA PROTECTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The Licensee is solely responsible for ensuring their use of the Software
+complies with applicable data protection laws (including GDPR, CCPA, and
+equivalent regulations), robots.txt terms of third-party websites, and any
+applicable terms of service of sites accessed via the Software.
+
+The Software enforces robots.txt and scrubs PII by default as a technical
+control. These controls do not constitute legal advice or a guarantee of
+compliance. The Licensee assumes all legal responsibility for URLs submitted
+and data collected.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. DISCLAIMER OF WARRANTIES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -91,13 +113,26 @@ BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM USE OF THE
 SOFTWARE.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-7. GOVERNING LAW
+8. LIMITATION OF LIABILITY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-This License shall be governed by the laws of Egypt, without regard to conflict
-of law provisions. Disputes shall be resolved in Cairo, Egypt.
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR'S TOTAL
+LIABILITY TO THE LICENSEE SHALL NOT EXCEED THE AMOUNT PAID FOR THE LICENSE
+KEY IN THE 12 MONTHS PRIOR TO THE CLAIM. THE LICENSOR IS NOT LIABLE FOR
+INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. GOVERNING LAW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This License shall be governed by the laws of the Arab Republic of Egypt,
+without regard to conflict of law provisions. Disputes shall be resolved
+in the courts of Cairo, Egypt.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-To purchase a license: https://safe.teosegypt.com/license
-For enterprise inquiries: license@teosegypt.com
+Built by Ayman Seif · Elmahrosa International · Egypt · Est. 2007
+
+Self-hosting license:  https://safe.teosegypt.com/license
+Enterprise inquiries:  license@teosegypt.com
+Legal / compliance:    legal@teosegypt.com
