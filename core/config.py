@@ -7,6 +7,11 @@ class Settings(BaseSettings):
     dashboard_admin_password: str = ""
     user_agent: str = "SafeIngestion/1.0"
     
+    # API Server Settings
+    cors_origins: str = ""
+    sheet_webhook_url: str = ""
+    sheet_api_secret: str = ""
+
     class Config:
         env_file = ".env"
 
