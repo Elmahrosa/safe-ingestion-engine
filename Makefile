@@ -1,17 +1,13 @@
-install:
-	pip install -r requirements.txt
+.PHONY: run worker test lint
 
-dev:
-	uvicorn api.server:app --reload
+run:
+	uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+
+worker:
+	celery -A infrastructure.queue.celery_app worker --loglevel=INFO
 
 test:
-	pytest
+	pytest -q
 
 lint:
-	ruff .
-
-docker:
-	docker compose up
-
-openapi:
-	curl http://localhost:8000/openapi.json -o docs/openapi.json
+	python -m compileall api core collectors security services infrastructure tests

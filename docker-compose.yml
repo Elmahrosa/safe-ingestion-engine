@@ -1,50 +1,29 @@
-version: "3.9"
-
 services:
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    # Fix: added healthcheck so dependent services wait for Redis to be ready
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 5s
-
   api:
     build: .
-    command: uvicorn api.server:app --host 0.0.0.0 --port 8000
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+      - ./data:/app/data
     ports:
       - "8000:8000"
-    env_file: .env
-    volumes:
-      - ./data:/app/data
     depends_on:
-      redis:
-        condition: service_healthy  # Fix: was just depends_on without health condition
-    restart: unless-stopped
+      - redis
 
   worker:
     build: .
-    command: celery -A api.tasks.celery_app worker --loglevel=info --concurrency=4
-    env_file: .env
+    command: celery -A infrastructure.queue.celery_app worker --loglevel=INFO
+    env_file:
+      - .env
     volumes:
+      - ./:/app
       - ./data:/app/data
     depends_on:
-      redis:
-        condition: service_healthy  # Fix: worker was starting before Redis was ready
-    restart: unless-stopped
+      - redis
 
-  dashboard:
-    build: .
-    command: streamlit run dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+  redis:
+    image: redis:7-alpine
     ports:
-      - "8501:8501"
-    env_file: .env
-    volumes:
-      - ./data:/app/data
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
+      - "6379:6379"
