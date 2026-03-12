@@ -12,5 +12,3 @@ git commit -m "$1"
 
 # Push to remote
 git push origin main
-
-
