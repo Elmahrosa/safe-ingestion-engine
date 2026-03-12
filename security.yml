@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ── 1. Lint & type-check ──────────────────────────────────────────────────
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install lint dependencies
+        run: pip install ruff mypy types-requests
+
+      - name: Ruff — lint
+        run: ruff check . --output-format=github
+
+      - name: Ruff — format check
+        run: ruff format --check .
+
+      - name: Mypy — type check
+        # Ignore missing stubs for third-party libs that don't ship them yet
+        run: mypy . --ignore-missing-imports --exclude '__pycache__'
+
+  # ── 2. Security scanning ──────────────────────────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Bandit — static security analysis
+        run: bandit -r . -x __pycache__,.venv,tests -ll
+
+      - name: Check for committed secrets (.env)
+        run: |
+          if git ls-files | grep -qE '^\.env$'; then
+            echo "ERROR: .env file is tracked by git. Remove it and add to .gitignore."
+            exit 1
+          fi
+
+      - name: pip-audit — dependency vulnerability scan
+        run: |
+          pip install pip-audit
+          pip install -r requirements.txt
+          pip-audit --require-hashes=false
+
+  # ── 3. Unit & integration tests ───────────────────────────────────────────
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    # Spin up Redis so Celery tasks can be tested end-to-end
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    env:
+      REDIS_URL: redis://localhost:6379/0
+      PII_MODE: redact
+      PII_SALT: test-salt-not-for-production
+      USER_AGENT: SafeSaaS-CI/1.0
+      DATA_DIR: /tmp/safe-ingestion-test
+      DASHBOARD_ADMIN_PASSWORD: ""
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio httpx
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ -v \
+            --cov=. \
+            --cov-omit="__pycache__/*,tests/*,.venv/*" \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=60
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.11'
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7
+
+  # ── 4. Docker build check ─────────────────────────────────────────────────
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]          # only build if lint + tests pass
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build Docker image
+        run: docker build -t safe-ingestion-engine:ci .
+
+      - name: Trivy — container vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: safe-ingestion-engine:ci
+          format: table
+          exit-code: "1"
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
