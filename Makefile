@@ -22,3 +22,5 @@ commit:
     @git add .
     @git commit -m "$$msg"
     @git push origin main
+commit:
+    @./scripts/safe_commit.sh "$$msg"
