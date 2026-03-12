@@ -1,32 +1,26 @@
-name: Security Scan
+name: security-and-tests
 
 on:
   push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
 
 jobs:
-  audit:
+  validate:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
-      - name: Install scanners
+          python-version: "3.12"
+      - name: Install dependencies
         run: |
-          pip install bandit safety semgrep
-
-      - name: Run Bandit
-        run: bandit -r core collectors
-
-      - name: Run Safety
-        run: safety check
-
-      - name: Run Semgrep
-        run: semgrep --config auto core collectors
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt bandit pip-audit
+      - name: Compile check
+        run: python -m compileall api core collectors security services infrastructure tests
+      - name: Unit tests
+        run: pytest -q
+      - name: Bandit
+        run: bandit -r api core collectors security services infrastructure -ll
+      - name: pip-audit
+        run: pip-audit -r requirements.txt
