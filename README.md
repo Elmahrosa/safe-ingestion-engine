@@ -1,383 +1,457 @@
+
 <div align="center">
 
 <img src="https://raw.githubusercontent.com/Elmahrosa/safe-ingestion-engine/main/logo.png" width="110"/>
 
-# Safe Ingestion Engine
+# 🛡️ Safe Ingestion Engine
 
-### Compliance-First Infrastructure for Ethical Web Data Ingestion
+### Compliance-First Web Data Ingestion API
 
-Policy enforcement · PII protection · SSRF blocking · audit logging · async ingestion
+robots.txt enforced · PII scrubbed · SSRF blocked · full audit log · async by default
 
-[![Python](https://img.shields.io/badge/Python-3.11-blue?style=flat-square&logo=python)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Production-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker)](https://docker.com)
-[![Security](https://img.shields.io/badge/Security-Safe_by_Design-green?style=flat-square)](#security-model)
-[![License](https://img.shields.io/badge/License-Commercial-orange?style=flat-square)](LICENSE)
-[![CI](https://github.com/Elmahrosa/safe-ingestion-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Elmahrosa/safe-ingestion-engine/actions)
-[![Security](https://img.shields.io/badge/Security-Scanned-brightgreen)](https://github.com/Elmahrosa/safe-ingestion-engine/security)
-[![License](https://img.shields.io/badge/License-Commercial-blue)](LICENSE)
-🌐 Hosted API → https://safe.teosegypt.com  
-📄 Documentation → https://safe.teosegypt.com/docs.html
+[![Python](https://img.shields.io/badge/Python-3.11-blue?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
+[![Security](https://img.shields.io/badge/Security-Safe_by_Design-green?style=flat-square)](#security)
+[![License](https://img.shields.io/badge/License-Commercial-orange?style=flat-square)](./LICENSE)
+[![CI](https://github.com/Elmahrosa/safe-ingestion-engine/actions/workflows/security.yml/badge.svg)](https://github.com/Elmahrosa/safe-ingestion-engine/actions)
+
+**🌐 Hosted API →** https://safe.teosegypt.com  
+**⚡ Free Trial →** https://safe.teosegypt.com/#trial  
+**📖 Docs →** https://safe.teosegypt.com/docs.html  
+**💬 Issues →** https://github.com/Elmahrosa/safe-ingestion-engine/issues
 
 </div>
 
 ---
 
-# Overview
+## Why Safe Ingestion Engine?
 
-Safe Ingestion Engine is a **governed web data ingestion platform** designed for environments where **compliance, traceability, and safety matter as much as speed**.
+Most scraping tools optimize for throughput. Safe Ingestion Engine optimizes for **legal defensibility**.
 
-Most scraping tools optimize for throughput.  
-Safe Ingestion Engine optimizes for **responsible ingestion, policy enforcement, and auditability**.
+When your compliance team asks *"was this scrape ethical and auditable?"* — you need an answer. Safe Ingestion Engine makes compliance the default, not the afterthought.
 
-Every request passes through a controlled safety pipeline before a network request is executed.
+| Concern | Typical Scraper | Safe Ingestion Engine |
+|---|---|---|
+| robots.txt | Optional / ignored | **Enforced before every fetch** |
+| PII in data | Passes through | **Auto-redacted (email, phone, SSN, CC, IP)** |
+| SSRF attacks | Unprotected | **Blocked at network layer** |
+| Audit trail | None | **Full log, PDF-exportable** |
+| Rate limiting | None | **Per-domain crawl budgets via YAML** |
+| Compliance posture | Unknown | **GDPR-friendly by architecture** |
+| AI agent safety | None | **Drop-in compliant layer for autonomous agents** |
+
+---
+
+## How It Works
+
+Every request passes through a controlled safety pipeline before any network call is made.
 
 ```
-
 URL Input
-│
-▼
-Policy Engine
-robots.txt · domain rules · crawl budgets · SSRF guard
-│
-▼
-Safe Fetch
-rate limited · redirect validated · response capped
-│
-▼
-PII Scrubber
-email · phone · SSN · IPv4 · credit card
-│
-▼
+    │
+    ▼
+Policy Engine ──── robots.txt check
+    │           ── YAML domain rules
+    │           ── crawl budget enforcement
+    │           ── SSRF validation
+    │
+    ▼
+Safe Fetch ──────── redirect chain validated hop-by-hop
+    │           ── response size capped (5 MB)
+    │           ── timeout enforced (10s default)
+    │
+    ▼
+PII Scrubber ────── email · phone · SSN · IPv4 · credit card
+    │           ── scrubbed IN MEMORY before any write
+    │
+    ▼
 Clean Content + Audit Log
-
 ```
 
-Blocked requests are **not billed** and remain visible in audit logs.
+**Blocked requests are not billed** and remain visible in your audit log.
 
 ---
 
-# Key Capabilities
+## Architecture
 
-| Capability | Description |
-|------------|-------------|
-robots.txt compliance | validated before every fetch |
-YAML policy rules | allow / deny domain policies |
-SSRF protection | blocks private, loopback, metadata IPs |
-Redirect validation | redirect chain verified hop-by-hop |
-PII scrubbing | email, phone, SSN, IPv4, credit card |
-Audit logging | every ingestion decision recorded |
-Async ingestion | Celery workers process jobs |
-Dashboard | Streamlit metrics and audit export |
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Client / AI Agent                          │
+└──────────────────────────┬──────────────────────────────────┘
+                           │  POST /v1/ingest_async
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│              FastAPI  (api/server.py)                        │
+│   Auth · Rate Limit · Credit Deduction (atomic SQL)         │
+└──────────────────────────┬──────────────────────────────────┘
+                           │  Celery task enqueue
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Celery Worker  (api/tasks.py)                   │
+│                                                             │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │ PolicyEngine│  │  SafeScraper │  │   PIIScrubber    │  │
+│  │ robots.txt  │  │  SSRF guard  │  │  email / phone / │  │
+│  │ YAML rules  │  │  size cap    │  │  SSN / IP / CC   │  │
+│  │ crawl budget│  │  timeout     │  │  redact or hash  │  │
+│  └─────────────┘  └──────────────┘  └──────────────────┘  │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+              ┌────────────┴────────────┐
+              ▼                         ▼
+       Redis (broker)           SQLite / PostgreSQL
+       Celery results           Audit log · metrics
+                                         │
+                                         ▼
+                               Streamlit Dashboard
+                               Metrics · Audit export · Admin
+```
+
+**Stack:** Python 3.11 · FastAPI · Celery · Redis · SQLite · Streamlit · Docker
 
 ---
 
-# Architecture
+## Quick Start (Self-Hosted)
 
-```
+### Prerequisites
 
-FastAPI Gateway
-│
-▼
-Celery Worker
-│
-├── Policy Engine
-│      robots.txt
-│      domain rules
-│      crawl budgets
-│
-├── SafeScraper
-│      SSRF guard
-│      redirect validation
-│      response limits
-│
-└── PIIScrubber
-redact or hash mode
+- Docker Desktop (or Docker + Compose)
+- Git
 
-Storage → SQLite
-Queue → Redis
-Dashboard → Streamlit
+### Up in 3 Commands
 
-```
-
-Stack
-
-```
-
-Python 3.11
-FastAPI
-Celery
-Redis
-SQLite
-Streamlit
-Docker
-
-```
-
----
-
-# Quick Start (Self-Hosted)
-
-```
-
-git clone [https://github.com/Elmahrosa/safe-ingestion-engine.git](https://github.com/Elmahrosa/safe-ingestion-engine.git)
+```bash
+git clone https://github.com/Elmahrosa/safe-ingestion-engine.git
 cd safe-ingestion-engine
-
-cp .env.example .env
-make up
-
+cp .env.example .env        # set PII_SALT and DASHBOARD_ADMIN_PASSWORD at minimum
+docker compose up --build
 ```
 
-Services
+| Service | URL |
+|---|---|
+| API (Swagger UI) | http://localhost:8000/docs |
+| Dashboard | http://localhost:8501 |
 
-| Component | URL |
-|-----------|-----|
-API | http://localhost:8000/docs |
-Dashboard | http://localhost:8501 |
+### First API Call
+
+```bash
+export KEY="sk-safe-YOURKEYHERE"
+
+# 1. Submit a URL
+curl -X POST http://localhost:8000/v1/ingest_async \
+  -H "X-API-Key: \$KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com", "scrub_pii": true}'
+# → {"job_id": "abc123", "status": "queued"}
+
+# 2. Poll for result
+curl http://localhost:8000/v1/jobs/abc123 \
+  -H "X-API-Key: \$KEY"
+# → {"status": "complete", "content": "...", "pii_redacted": 3}
+```
 
 ---
 
-# Hosted API
+## Hosted API
 
-A managed version of Safe Ingestion Engine is available at
+A fully managed version runs at **https://safe.teosegypt.com**
 
-https://safe.teosegypt.com
+- Managed workers and Redis — zero setup
+- Policy-enforced ingestion
+- Full audit logging and PDF export
+- Instant API key delivery by email
+- Pay per URL — no subscription required
 
-The hosted service provides
-
-• managed workers  
-• policy-enforced ingestion  
-• audit logging  
-• usage tracking  
-• instant API keys  
-
----
-
-# Trial Access
-
-New users receive
-
-**5 free URL ingestions**
-
-This trial allows developers to test
-
-• ingestion pipeline  
-• PII scrubbing  
-• policy enforcement  
-• async job system  
-
-Start here
-
-https://safe.teosegypt.com
+**Get 5 free URL credits → https://safe.teosegypt.com/#trial**  
+No credit card required.
 
 ---
 
-# API Example
+## API Reference
 
-Submit ingestion job
+### `POST /v1/ingest_async`
 
-```
+Submit a URL for compliant ingestion.
 
-curl -X POST [http://localhost:8000/v1/ingest_async](http://localhost:8000/v1/ingest_async) 
--H "X-API-Key: YOUR_KEY" 
--H "Content-Type: application/json" 
--d '{"url":"[https://example.com"}](https://example.com%22})'
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `url` | string | ✅ | Target URL to fetch |
+| `scrub_pii` | boolean | ❌ | Default `true`. Set `false` to disable PII scrubbing |
+| `policy_override` | object | ❌ | Override YAML policy fields per-request |
 
-```
-
-Response
-
-```
-
+**Request**
+```json
 {
-"job_id": "abc123",
-"status": "queued"
+  "url": "https://example.com/public/data",
+  "scrub_pii": true
 }
-
 ```
 
-Poll result
-
+**Response**
+```json
+{
+  "job_id": "f47ac10b-58cc",
+  "status": "queued",
+  "estimated_seconds": 2
+}
 ```
 
-GET /v1/jobs/{job_id}
+**Authentication:** `X-API-Key: sk-safe-XXXXXXXXXX`
 
+---
+
+### `GET /v1/jobs/{job_id}`
+
+Poll for job result.
+
+**Response (complete)**
+```json
+{
+  "status": "complete",
+  "url": "https://example.com/public/data",
+  "content": "...<scrubbed content>...",
+  "pii_redacted": 3,
+  "robots_allowed": true,
+  "policy_decision": "ALLOW",
+  "fetched_at": "2026-03-12T10:00:00Z",
+  "credits_remaining": 47
+}
+```
+
+**Status values:** `queued` · `running` · `complete` · `blocked` · `failed`
+
+---
+
+### `GET /health`
+
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "database": "connected",
+  "redis": "connected"
+}
 ```
 
 ---
 
-# API Documentation
+### Export OpenAPI Schema
 
-API documentation is available through
-
-• Swagger UI (`/docs`)  
-• exported OpenAPI schema  
-• markdown reference docs  
-
-Export OpenAPI
-
-```
-
-curl [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json) -o docs/openapi.json
-
-```
-
-Docs
-
-```
-
-docs/API.md
-docs/openapi.json
-
+```bash
+curl http://localhost:8000/openapi.json -o docs/openapi.json
 ```
 
 ---
 
-# Security Model
+## Configuration
 
-| Layer | Control |
-|------|---------|
-Network | SSRF guard against private networks |
-Compliance | robots.txt enforcement |
-Policy | domain allow/deny rules |
-Fetch | redirect and response limits |
-Data | automatic PII scrubbing |
-Auth | hashed API keys |
-Billing | atomic credit deduction |
-Runtime | containerized execution |
-
-Security scans run in CI using
-
-```
-
-Bandit
-pip-audit
-Trivy
-
-```
+| Env Var | Default | Description |
+|---|---|---|
+| `PII_SALT` | *(required)* | HMAC salt for hash mode — use a long random string |
+| `PII_MODE` | `redact` | `redact` (→ `[REDACTED]`) or `hash` (HMAC-SHA256) |
+| `REDIS_URL` | `redis://redis:6379/0` | Celery broker and result backend |
+| `DATA_DIR` | `data` | Directory for SQLite database file |
+| `DATABASE_URL` | SQLite | Set to `postgresql://...` for production |
+| `MAX_RESPONSE_BYTES` | `5242880` | Max fetch size per URL (5 MB default) |
+| `FETCH_TIMEOUT_SECONDS` | `10` | HTTP request timeout |
+| `USER_AGENT` | `SafeSaaS/1.0` | User-Agent sent with all requests |
+| `DASHBOARD_ADMIN_PASSWORD` | *(blank = disabled)* | Protects admin tab in Streamlit dashboard |
+| `CORS_ORIGINS` | *(blank)* | Comma-separated allowed CORS origins |
 
 ---
 
-# Integration Tests
+## Security
 
-Critical safety logic is validated by integration tests
+Security is a first-class concern. Every layer is hardened by design.
 
-```
+### Built-In Protections
 
-tests/integration/
+| Layer | Protection |
+|---|---|
+| **Authentication** | API keys stored as SHA-256 hashes — never plaintext |
+| **Authorization** | Atomic credit deduction via `UPDATE WHERE credits > 0` — no TOCTOU race |
+| **SSRF** | All URLs validated against private IP ranges before any fetch |
+| **Size cap** | Streaming fetch with hard byte limit — no memory exhaustion |
+| **robots.txt** | Checked before every request — fails closed on network error |
+| **PII scrubbing** | In-memory pipeline: email, phone (NA format), SSN, IPv4, credit card |
+| **Redirect validation** | Redirect chain verified hop-by-hop |
+| **Dashboard** | Admin panel requires password via environment variable |
+| **CI pipeline** | Bandit + Trivy + pip-audit run on every push |
 
-```
+### Reporting Vulnerabilities
 
-Coverage includes
+**Do not open public GitHub issues for security vulnerabilities.**
 
-• policy enforcement  
-• robots.txt blocking  
-• SSRF protection  
-• redirect chain validation  
+Email: **security@teosegypt.com**  
+Full policy: [SECURITY.md](./SECURITY.md)
 
-Run tests
-
-```
-
-pytest tests/integration -v
-
-```
+We acknowledge within 48 hours and target a fix within 7 days for critical issues.
 
 ---
 
-# Database Migrations
+## Compliance
 
-Schema changes are managed with **Alembic**
+### Data Flow
 
 ```
+URL submitted → robots.txt check → SSRF validation → fetch
+→ PII scrubbed IN MEMORY → clean content stored → audit log written
+```
 
+**PII is never persisted.** Scrubbing happens in-memory before any disk write.
+
+### GDPR Posture
+
+- Audit logs retained 90 days (configurable)
+- No third-party analytics in the API request path
+- Data Processing Agreement available on request → compliance@teosegypt.com
+- Right to deletion: contact support@teosegypt.com with your account email
+
+---
+
+## Database Migrations
+
+Schema changes are managed with **Alembic**.
+
+```bash
 alembic upgrade head
 alembic revision --autogenerate
-
 ```
 
-Migration files
-
-```
-
-alembic/versions/
-
-```
+Migration files live in `alembic/versions/`.
 
 ---
 
-# Example Data and Policy Packs
+## Running Tests
 
-Evaluation assets are included
-
+```bash
+pip install -r requirements.txt pytest httpx
+pytest tests/ -v
 ```
 
-examples/datasets/
-examples/policies/
-
-```
-
-These contain
-
-• sample URL datasets  
-• sanitized ingestion output  
-• audit log examples  
-• policy templates  
+Integration tests cover: policy enforcement · robots.txt blocking · SSRF protection · redirect chain validation.
 
 ---
 
-# Documentation
+## Self-Hosting vs. Hosted API
+
+| | Self-Hosted | Hosted API |
+|---|---|---|
+| Setup | Docker Compose | None |
+| Data residency | Your servers | Managed cloud |
+| Pricing | Free (your infra costs) | Per-URL credits |
+| SLA | You manage | 99.9% uptime (paid plans) |
+| Support | Community / GitHub Issues | Email |
+
+---
+
+## Pricing
+
+| Plan | Price | URLs | Expiry | Cost per URL |
+|---|---|---|---|---|
+| **Free Trial** | \$0 | 5 | 48 hours | Free |
+| **Monthly Starter** | \$29 / mo | 300 | 30 days | \$0.097 |
+| **Monthly Growth** | \$79 / mo | 900 | 30 days | \$0.088 |
+| **Yearly Starter** | \$290 / yr | 3,000 | 365 days | \$0.097 |
+| **Yearly Growth** | \$790 / yr | 9,000 | 365 days | \$0.088 |
+| **Pay-As-You-Go** | \$0.15 / URL | Unlimited | No expiry | \$0.15 |
+| **Enterprise** | Custom | Unlimited | Custom | Custom |
+
+Payment via **USDC on Base network** or Stripe.  
+USDC wallet: `0xd9CA11Dde3810a1BA9B5E1a4b6b76F5a419FAb41` (Base network only)  
+→ https://safe.teosegypt.com/#pricing
+
+---
+
+## Documentation
 
 | Document | Purpose |
-|---------|---------|
-ARCHITECTURE.md | system design |
-API.md | endpoint reference |
-openapi.json | OpenAPI schema |
-OPERATIONS.md | runbooks |
-SELF_HOSTING.md | deployment guide |
-TESTING.md | test strategy |
-COMPLIANCE.md | governance |
-SECURITY.md | vulnerability reporting |
+|---|---|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | System design and data flow |
+| [docs/API.md](./docs/API.md) | Full endpoint reference |
+| [docs/openapi.json](./docs/openapi.json) | OpenAPI schema |
+| [OPERATIONS.md](./OPERATIONS.md) | Runbooks and monitoring |
+| [SELF_HOSTING.md](./SELF_HOSTING.md) | Deployment guide |
+| [TESTING.md](./TESTING.md) | Test strategy and coverage |
+| [COMPLIANCE.md](./COMPLIANCE.md) | Governance and GDPR posture |
+| [SECURITY.md](./SECURITY.md) | Vulnerability reporting policy |
+| [CHANGELOG.md](./CHANGELOG.md) | Version history and all bug fixes |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | Contribution guidelines |
 
 ---
 
-# Roadmap
+## Example Assets
 
-Planned improvements
+Evaluation assets included under `examples/`:
 
-• PostgreSQL production backend  
-• webhook job completion  
-• signed audit exports  
-• advanced policy templates  
-• enterprise authentication  
+```
+examples/
+├── datasets/      # sample URL sets for testing
+├── policies/      # ready-to-use YAML policy templates
+└── outputs/       # sanitized ingestion output examples
+```
 
 ---
 
-# Commercial License
+## Changelog — 20 Bugs Fixed at Launch
 
-This project is **source-available under a commercial license**
+The v1.0.0 release included an audit that identified and fixed 20 bugs across critical, security, and correctness categories. Full details in [CHANGELOG.md](./CHANGELOG.md).
 
-Enterprise licensing
+**Critical fixes summary:**
+- API keys were stored in plaintext → now SHA-256 hashed
+- Credit deduction had a TOCTOU race → now atomic SQL
+- SSRF guard was missing from scraper → added with private IP blocklist
+- robots.txt was not integrated into PolicyEngine → now enforced on every request
+- Core database functions were missing → implemented
+- PDF export was blank → fixed via ReportLab
+- CI workflow referenced non-existent action versions → pinned to valid releases
 
-```
+---
 
-[license@teosegypt.com](mailto:license@teosegypt.com)
+## Roadmap
 
-```
+- [x] robots.txt compliance
+- [x] PII scrubbing (email, phone, SSN, IP, CC)
+- [x] SSRF protection
+- [x] Full audit log + PDF export
+- [x] Async job queue (Celery + Redis)
+- [x] YAML policy rules
+- [x] Streamlit dashboard with metrics
+- [x] USDC micropayment integration (Base network)
+- [x] API key hashing (SHA-256)
+- [x] Atomic credit deduction
+- [ ] PostgreSQL production backend
+- [ ] Webhook callbacks on job completion
+- [ ] x402 protocol support (AI agent native payments)
+- [ ] OpenAPI SDK (Python, Node.js)
+- [ ] Signed audit log exports
+- [ ] SOC 2 Type I audit
+- [ ] Enterprise SSO
 
-See
+---
 
-```
+## Contributing
 
-LICENSE
+Issues, bug reports, and feature requests are welcome.  
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
-```
+Enterprise licensing: license@teosegypt.com
+
+---
+
+## License
+
+Source-available under a commercial license.  
+See [LICENSE](./LICENSE) for full terms.
 
 ---
 
 <div align="center">
 
-Built by **Ayman Seif**  
-Elmahrosa International 🇪🇬
+Built by **Ayman Seif** · [Elmahrosa International](https://teosegypt.com) 🇪🇬 · Est. 2007
+
+**Safe Ingestion Engine** — Scrape the web. Responsibly.  
+[safe.teosegypt.com](https://safe.teosegypt.com)
 
 </div>
