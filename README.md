@@ -13,7 +13,9 @@ Policy enforcement · PII protection · SSRF blocking · audit logging · async 
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker)](https://docker.com)
 [![Security](https://img.shields.io/badge/Security-Safe_by_Design-green?style=flat-square)](#security-model)
 [![License](https://img.shields.io/badge/License-Commercial-orange?style=flat-square)](LICENSE)
-
+[![CI](https://github.com/Elmahrosa/safe-ingestion-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Elmahrosa/safe-ingestion-engine/actions)
+[![Security](https://img.shields.io/badge/Security-Scanned-brightgreen)](https://github.com/Elmahrosa/safe-ingestion-engine/security)
+[![License](https://img.shields.io/badge/License-Commercial-blue)](LICENSE)
 🌐 Hosted API → https://safe.teosegypt.com  
 📄 Documentation → https://safe.teosegypt.com/docs.html
 
