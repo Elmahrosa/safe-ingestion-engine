@@ -6,7 +6,9 @@ import redis
 from core.config import get_settings
 from core.logging import logger
 
+
 settings = get_settings()
+
 
 class CrawlBudgetService:
     def __init__(self, redis_client: redis.Redis):
@@ -24,6 +26,7 @@ class CrawlBudgetService:
                     if current_count >= limit:
                         pipe.unwatch()
                         return False
+
                     pipe.multi()
                     pipe.incr(key, 1)
                     if current_count == 0:
@@ -33,22 +36,32 @@ class CrawlBudgetService:
                 except redis.WatchError:
                     continue
 
+
 class PolicyEngine:
     def __init__(self, redis_client: redis.Redis):
         self.crawl_budget = CrawlBudgetService(redis_client)
 
-    def check_robots(self, url: str, user_agent: str = "*") -> bool:
+    def evaluate(self, url: str, user_agent: str = "*", limit: int = 1000) -> dict:
         parsed = urlparse(url)
         robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+
         parser = urllib.robotparser.RobotFileParser()
         parser.set_url(robots_url)
+
         try:
             parser.read()
-            return parser.can_fetch(user_agent, url)
+            allowed_by_robots = parser.can_fetch(user_agent, url)
         except Exception as exc:
             logger.warning("robots.check_failed", url=url, robots_url=robots_url, error=str(exc))
-            return settings.robots_error_mode == "allow"
+            allowed_by_robots = settings.robots_error_mode == "allow"
 
-    def check_budget(self, url: str, limit: int = 1000) -> bool:
-        parsed = urlparse(url)
-        return self.crawl_budget.check_and_increment(parsed.netloc, limit)
+        if not allowed_by_robots:
+            return {"allowed": False, "reason": "robots policy denied"}
+
+        if not self.crawl_budget.check_and_increment(parsed.netloc, limit):
+            return {"allowed": False, "reason": "crawl budget exceeded"}
+
+        return {"allowed": True, "reason": "allowed"}
+
+    def decide(self, url: str) -> bool:
+        return self.evaluate(url)["allowed"]

@@ -1,13 +1,40 @@
+# Contributing
 
-# Code of Conduct
+Thank you for your interest in Safe Ingestion Engine.
 
-This project follows a professional and respectful collaboration policy.
+## Development Setup
 
-Participants are expected to:
+```
 
-• communicate respectfully  
-• focus on constructive technical discussion  
-• avoid personal attacks
+make dev
 
-Violations may result in removal from project participation.
+```
+
+Run tests
+
+```
+
+pytest
+
+```
+
+---
+
+## Pull Requests
+
+All pull requests must:
+
+• pass CI tests  
+• include tests for new functionality  
+• follow existing code style  
+
+---
+
+## Reporting Issues
+
+Please include:
+
+• reproduction steps  
+• logs if available  
+• expected vs actual behavior
 ```

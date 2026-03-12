@@ -7,8 +7,10 @@ from security.rate_limit import limiter
 
 router = APIRouter()
 
+
 class IngestRequest(BaseModel):
     url: HttpUrl
+
 
 @router.post("/ingest")
 @limiter.limit("10/minute")

@@ -1,33 +1,50 @@
-# Deployment
+version: "3.9"
 
-## Canonical deployment targets
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Fix: added healthcheck so dependent services wait for Redis to be ready
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
-- API container runs `uvicorn api.main:app --host 0.0.0.0 --port 8000`
-- Worker container runs `celery -A infrastructure.queue.celery_app worker --loglevel=INFO`
+  api:
+    build: .
+    command: uvicorn api.server:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy  # Fix: was just depends_on without health condition
+    restart: unless-stopped
 
-## Environment variables
+  worker:
+    build: .
+    command: celery -A api.tasks.celery_app worker --loglevel=info --concurrency=4
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy  # Fix: worker was starting before Redis was ready
+    restart: unless-stopped
 
-Required:
-- `PII_SALT` (minimum 32 characters)
-- `DASHBOARD_ADMIN_PASSWORD` (minimum 12 characters)
-- `API_KEY_HASHES_JSON` (JSON array of SHA-256 API key hashes)
-- `REDIS_URL`
-- `CELERY_BROKER_URL`
-- `CELERY_RESULT_BACKEND`
-
-## Local stack
-
-```bash
-cp .env.example .env
-docker compose up --build
-```
-
-## Production advice
-
-For real production:
-- use Postgres instead of SQLite
-- terminate TLS in your ingress or reverse proxy
-- put Redis behind auth/network controls
-- store secrets outside the repo and outside `.env`
-- set `ROBOTS_ERROR_MODE=deny`
-- keep `ALLOW_REDIRECTS=false` unless you have a business reason to enable redirects
+  dashboard:
+    build: .
+    command: streamlit run dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped

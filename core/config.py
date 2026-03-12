@@ -4,8 +4,13 @@ import json
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="forbid", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="forbid",
+        case_sensitive=False,
+    )
 
     app_name: str = "safe-ingestion-engine"
     environment: str = "development"
@@ -14,13 +19,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     database_url: str = "sqlite:///./data/jobs.db"
-    redis_url: str
-    celery_broker_url: str
-    celery_result_backend: str
+    redis_url: str = "redis://redis:6379/0"
+    celery_broker_url: str = "redis://redis:6379/1"
+    celery_result_backend: str = "redis://redis:6379/2"
 
     pii_salt: str
     dashboard_admin_password: str
-    api_key_hashes_json: str
+    api_key_hashes_json: str = "[]"
 
     request_timeout_seconds: int = 10
     max_response_bytes: int = 5_242_880
@@ -56,6 +61,7 @@ class Settings(BaseSettings):
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
             raise ValueError("API_KEY_HASHES_JSON must be a JSON array of strings")
         return value
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,29 +1,20 @@
-services:
-  api:
-    build: .
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
-    env_file:
-      - .env
-    volumes:
-      - ./:/app
-      - ./data:/app/data
-    ports:
-      - "8000:8000"
-    depends_on:
-      - redis
+FROM python:3.11-slim
 
-  worker:
-    build: .
-    command: celery -A infrastructure.queue.celery_app worker --loglevel=INFO
-    env_file:
-      - .env
-    volumes:
-      - ./:/app
-      - ./data:/app/data
-    depends_on:
-      - redis
+WORKDIR /app
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+# Create non-root user
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app/data && \
+    chown -R appuser:appuser /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Switch to non-root user
+USER appuser
+
+EXPOSE 8000 8501
+
+CMD ["uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -3,11 +3,14 @@ from datetime import datetime, timezone
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+
 class Base(DeclarativeBase):
     pass
 
+
 def utcnow():
     return datetime.now(timezone.utc)
+
 
 class Job(Base):
     __tablename__ = "jobs"

@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from core.config import get_settings
 from core.models import Base
 
+
 settings = get_settings()
 
 if settings.database_url.startswith("sqlite:///./"):
@@ -21,8 +22,10 @@ engine = create_engine(
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+
 
 @contextmanager
 def session_scope():

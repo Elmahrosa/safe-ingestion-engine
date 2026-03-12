@@ -1,14 +1,103 @@
-FROM python:3.12-slim
+SAFE INGESTION ENGINE — COMMERCIAL SOURCE LICENSE
+Version 1.0  |  Effective: 2025
 
-WORKDIR /app
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+Copyright (c) 2025 Elmahrosa / Teos Egypt. All rights reserved.
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. DEFINITIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-COPY . .
-RUN mkdir -p /app/data
+"Software" means the Safe Ingestion Engine source code, binaries, documentation,
+configuration files, and all associated materials in this repository.
 
-EXPOSE 8000
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+"Licensor" means Elmahrosa / Teos Egypt.
+
+"Licensee" means any individual or legal entity that has paid the Access Fee and
+received a written License Key from the Licensor.
+
+"Access Fee" means the one-time payment of USD $5.00 (five US dollars) required
+to obtain a License Key granting rights under this License.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. ACCESS AND LICENSE GRANT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+To obtain a license:
+  1. Pay the Access Fee at: https://safe.teosegypt.com/license
+  2. You will receive a License Key by email within 24 hours.
+  3. Keep your License Key confidential. Do not share it.
+
+Upon receipt of a valid License Key, the Licensor grants the Licensee a
+non-exclusive, non-transferable, non-sublicensable license to:
+
+  (a) PERSONAL / INTERNAL USE: Use and run the Software for internal business
+      purposes on an unlimited number of machines owned or controlled by the
+      Licensee.
+
+  (b) MODIFICATION: Modify the Software for internal use only.
+
+  (c) SELF-HOSTING: Deploy the Software on infrastructure controlled by the
+      Licensee to serve the Licensee's own end-users.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. RESTRICTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Without a separate written Commercial Resale Agreement from the Licensor,
+a Licensee MAY NOT:
+
+  (a) Redistribute, sell, rent, lease, or sublicense the Software or any
+      derivative thereof to any third party.
+
+  (b) Offer the Software as a hosted or managed service to third parties
+      (SaaS resale) without a separate SaaS Resale License.
+
+  (c) Remove or obscure any copyright, trademark, or attribution notices.
+
+  (d) Use the Licensor's name, logo, or trademarks to endorse any product
+      derived from this Software without prior written permission.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. VIEWING WITHOUT A LICENSE (SOURCE-AVAILABLE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Individuals who have NOT paid the Access Fee MAY:
+  - Read and study the source code for personal educational purposes only.
+  - Submit bug reports or security disclosures via the process in SECURITY.md.
+
+They MAY NOT run, deploy, modify, or build upon the Software in any other way.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. ENTERPRISE AND SAAS RESALE LICENSES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+For resale, OEM embedding, white-labeling, or high-volume deployment,
+contact: license@teosegypt.com
+
+Custom licensing terms are available for:
+  - SaaS resellers
+  - OEM / embedded deployments
+  - Government and regulated-industry procurement
+  - Acquisition / M&A due diligence
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. DISCLAIMER OF WARRANTIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE LICENSOR
+BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM USE OF THE
+SOFTWARE.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. GOVERNING LAW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This License shall be governed by the laws of Egypt, without regard to conflict
+of law provisions. Disputes shall be resolved in Cairo, Egypt.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+To purchase a license: https://safe.teosegypt.com/license
+For enterprise inquiries: license@teosegypt.com

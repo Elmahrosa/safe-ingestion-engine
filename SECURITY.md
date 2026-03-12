@@ -1,17 +1,47 @@
-# Security
 
-## Core controls
+# Security Policy
 
-- SSRF protection blocks private, reserved, loopback, multicast, and link-local IP space
-- API keys are validated by SHA-256 hash comparison
-- Crawl budgets are enforced in Redis instead of in-process memory
-- PII is scrubbed before persistence by deterministic HMAC-based replacement
-- robots.txt is enforced with configurable error behavior
-- Celery retries use exponential backoff with jitter
-- Structured logs are emitted for key security-relevant events
+Safe Ingestion Engine takes security seriously.
 
-## Current limitations
+## Reporting Vulnerabilities
 
-- SQLite is acceptable for local use and light workloads, but not ideal for heavy production write concurrency
-- PII regex coverage is intentionally simple and should be expanded for stricter compliance targets
-- DNS validation is still blocking and can be upgraded later to async DNS for higher throughput
+Please do not open public issues for security vulnerabilities.
+
+Instead email:
+
+security@teosegypt.com
+
+Include:
+
+• description of the vulnerability  
+• reproduction steps  
+• affected components  
+
+We aim to respond within **48 hours**.
+
+---
+
+## Supported Versions
+
+Security updates are applied to the latest release branch.
+
+Older versions may not receive security patches.
+
+---
+
+## Security Practices
+
+The project includes several security controls:
+
+• SSRF protection  
+• robots.txt enforcement  
+• policy-based ingestion restrictions  
+• PII scrubbing  
+• redirect chain validation  
+
+CI security scanning includes:
+
+Bandit  
+pip-audit  
+Trivy
+```

@@ -8,7 +8,9 @@ import httpx
 from core.config import get_settings
 from core.logging import logger
 
+
 settings = get_settings()
+
 
 @dataclass
 class FetchResult:
@@ -17,8 +19,10 @@ class FetchResult:
     status_code: int
     content_type: str | None
 
+
 class SSRFBlockedError(Exception):
     pass
+
 
 class HTTPConnector:
     def __init__(self):
@@ -27,6 +31,7 @@ class HTTPConnector:
     def _validate_host(self, url: str) -> None:
         parsed = urlparse(url)
         hostname = parsed.hostname
+
         if not hostname:
             raise SSRFBlockedError("missing hostname")
         if parsed.scheme not in {"http", "https"}:
@@ -41,8 +46,15 @@ class HTTPConnector:
 
     async def fetch(self, url: str) -> FetchResult:
         self._validate_host(url)
-        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=settings.allow_redirects) as client:
-            response = await client.get(url, headers={"User-Agent": "safe-ingestion-engine/2.0"})
+
+        async with httpx.AsyncClient(
+            timeout=self.timeout,
+            follow_redirects=settings.allow_redirects,
+        ) as client:
+            response = await client.get(
+                url,
+                headers={"User-Agent": "safe-ingestion-engine/2.0"},
+            )
             response.raise_for_status()
 
             body = response.text

@@ -1,4 +1,13 @@
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from fastapi import Request
 
-limiter = Limiter(key_func=get_remote_address)
+
+def rate_limit_key(request: Request) -> str:
+    api_key = request.headers.get("x-api-key")
+    if api_key:
+        return f"api:{api_key}"
+    client = request.client.host if request.client else "unknown"
+    return f"ip:{client}"
+
+
+limiter = Limiter(key_func=rate_limit_key)

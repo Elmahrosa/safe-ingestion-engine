@@ -7,12 +7,14 @@ from core.models import Job
 
 router = APIRouter()
 
+
 @router.get("/jobs/{job_id}")
 async def get_job(job_id: str, api_key: str = Depends(require_api_key)):
     with session_scope() as session:
         job = session.scalar(select(Job).where(Job.job_id == job_id))
         if not job:
             raise HTTPException(status_code=404, detail="job not found")
+
         return {
             "job_id": job.job_id,
             "status": job.status,
