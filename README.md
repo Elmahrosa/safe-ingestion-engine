@@ -1,4 +1,3 @@
-
 <div align="center">
 
 <img src="https://raw.githubusercontent.com/Elmahrosa/safe-ingestion-engine/main/logo.png" width="110"/>
@@ -140,14 +139,14 @@ export KEY="sk-safe-YOURKEYHERE"
 
 # 1. Submit a URL
 curl -X POST http://localhost:8000/v1/ingest_async \
-  -H "X-API-Key: \$KEY" \
+  -H "X-API-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com", "scrub_pii": true}'
 # → {"job_id": "abc123", "status": "queued"}
 
 # 2. Poll for result
 curl http://localhost:8000/v1/jobs/abc123 \
-  -H "X-API-Key: \$KEY"
+  -H "X-API-Key: $KEY"
 # → {"status": "complete", "content": "...", "pii_redacted": 3}
 ```
 
@@ -348,18 +347,18 @@ Integration tests cover: policy enforcement · robots.txt blocking · SSRF prote
 
 ## Pricing
 
-| Plan | Price | URLs | Expiry | Cost per URL |
+| Plan | Price | URLs | Expiry | Cost / URL |
 |---|---|---|---|---|
-| **Free Trial** | \$0 | 5 | 48 hours | Free |
-| **Monthly Starter** | \$29 / mo | 300 | 30 days | \$0.097 |
-| **Monthly Growth** | \$79 / mo | 900 | 30 days | \$0.088 |
-| **Yearly Starter** | \$290 / yr | 3,000 | 365 days | \$0.097 |
-| **Yearly Growth** | \$790 / yr | 9,000 | 365 days | \$0.088 |
-| **Pay-As-You-Go** | \$0.15 / URL | Unlimited | No expiry | \$0.15 |
+| **Free Trial** | $0 | 5 | 48 hours | Free |
+| **Pay-As-You-Go** | $0.15 / URL | Unlimited | No expiry | $0.15 |
+| **Monthly Starter** | $29 / mo | 300 | 30 days | $0.097 |
+| **Monthly Growth** | $79 / mo | 900 | 30 days | $0.088 |
+| **Yearly Starter** | $290 / yr | 3,000 | 365 days | $0.097 |
+| **Yearly Growth** | $790 / yr | 9,000 | 365 days | $0.088 |
 | **Enterprise** | Custom | Unlimited | Custom | Custom |
 
 Payment via **USDC on Base network** or Stripe.  
-USDC wallet: `0xd9CA11Dde3810a1BA9B5E1a4b6b76F5a419FAb41` (Base network only)  
+USDC wallet: `0xd9CA11Dde3810a1BA9B5E1a4b6b76F5a419FAb41` *(Base network only — not Ethereum mainnet)*  
 → https://safe.teosegypt.com/#pricing
 
 ---
@@ -419,6 +418,7 @@ The v1.0.0 release included an audit that identified and fixed 20 bugs across cr
 - [x] YAML policy rules
 - [x] Streamlit dashboard with metrics
 - [x] USDC micropayment integration (Base network)
+- [x] Pay-as-you-go pricing ($0.15/URL, no expiry)
 - [x] API key hashing (SHA-256)
 - [x] Atomic credit deduction
 - [ ] PostgreSQL production backend
