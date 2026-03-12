@@ -36,5 +36,5 @@ reportlab==4.2.0
 # spacy==3.7.4
 
 # ── Database migrations ───────────────────────────────────────────────────────
-alembic==1.13.1
+alembic==1.18.4
 sqlalchemy==2.0.30
