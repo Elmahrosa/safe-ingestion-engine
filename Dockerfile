@@ -1,14 +1,29 @@
-FROM python:3.12-slim
+services:
+  api:
+    build: .
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
 
-WORKDIR /app
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+  worker:
+    build: .
+    command: celery -A infrastructure.queue.celery_app worker --loglevel=INFO
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+      - ./data:/app/data
+    depends_on:
+      - redis
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-RUN mkdir -p /app/data
-
-EXPOSE 8000
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"

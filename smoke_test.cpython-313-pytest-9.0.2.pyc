@@ -1,0 +1,22 @@
+import os
+import requests
+
+API_BASE = os.getenv("API_BASE", "http://localhost:8000")
+API_KEY = os.getenv("API_KEY", "")
+
+def main():
+    r = requests.get(f"{API_BASE}/health", timeout=5)
+    r.raise_for_status()
+    print("health ok:", r.json())
+
+    if API_KEY:
+        r = requests.post(
+            f"{API_BASE}/v1/ingest",
+            headers={"X-API-Key": API_KEY},
+            json={"url": "https://example.com"},
+            timeout=10,
+        )
+        print("ingest:", r.status_code, r.text)
+
+if __name__ == "__main__":
+    main()
