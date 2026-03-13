@@ -1,3 +1,5 @@
+import socket
+import ipaddress
 from urllib.parse import urlparse
 import urllib.robotparser
 
