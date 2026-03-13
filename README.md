@@ -4,12 +4,14 @@
 
 ### Compliance-First Web Data Ingestion Infrastructure for AI Systems
 
-[![CI](https://github.com/Elmahrosa/safe-ingestion-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Elmahrosa/safe-ingestion-engine/actions)
-[![Security Scan](https://github.com/Elmahrosa/safe-ingestion-engine/actions/workflows/security.yml/badge.svg)](https://github.com/Elmahrosa/safe-ingestion-engine/actions)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
 [![Redis](https://img.shields.io/badge/Redis-Queue-dc382d?style=flat-square&logo=redis&logoColor=white)](https://redis.io)
+[![Celery](https://img.shields.io/badge/Celery-gevent_pool-37814a?style=flat-square)](https://docs.celeryq.dev)
+[![Security](https://img.shields.io/badge/Security-Bandit_%2B_Semgrep_%2B_Trivy-orange?style=flat-square)](https://github.com/Elmahrosa/safe-ingestion-engine/tree/main/.github/workflows)
+[![PII](https://img.shields.io/badge/PII-Scrubbed_at_worker-green?style=flat-square)](https://safe.teosegypt.com)
+[![robots.txt](https://img.shields.io/badge/robots.txt-Structural_enforcement-green?style=flat-square)](https://safe.teosegypt.com)
 [![x402](https://img.shields.io/badge/x402-USDC_on_Base-9b59ff?style=flat-square)](https://x402.org)
 [![License](https://img.shields.io/badge/License-Commercial_Proprietary-red?style=flat-square)](LICENSE)
 
