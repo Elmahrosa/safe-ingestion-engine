@@ -1,15 +1,27 @@
 version: "3.9"
 
+# Audit fixes applied
+# -------------------
+#   CVSS 9.1  Redis exposed unbound  -> bind 127.0.0.1, requirepass via env
+#   CVSS 9.1  Celery pickle RCE      -> CELERY_TASK_SERIALIZER=json enforced
+#   Healthchecks + startup ordering preserved
+
 services:
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD env var is required}
+      --bind 127.0.0.1
     volumes:
       - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"   # localhost only — never expose to 0.0.0.0
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,11 +34,17 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - CELERY_TASK_SERIALIZER=json
+      - CELERY_RESULT_SERIALIZER=json
+      - CELERY_ACCEPT_CONTENT=json
+      - ENABLE_DOCS=${ENABLE_DOCS:-false}   # disable Swagger in production
     command: >
       uvicorn api.server:app
       --host 0.0.0.0
       --port 8000
-      --workers 2
+      --workers 4
+      --limit-concurrency 100
     depends_on:
       redis:
         condition: service_healthy
@@ -42,7 +60,16 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    command: celery -A workers.tasks worker --loglevel=info --concurrency=2
+    environment:
+      - CELERY_TASK_SERIALIZER=json
+      - CELERY_RESULT_SERIALIZER=json
+      - CELERY_ACCEPT_CONTENT=json
+    command: >
+      celery -A workers.tasks worker
+      --loglevel=info
+      --concurrency=4
+      --without-gossip
+      --without-mingle
     depends_on:
       redis:
         condition: service_healthy
