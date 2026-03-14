@@ -2,63 +2,35 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
 
 jobs:
-  test:
-    name: Tests — Python ${{ matrix.python-version }}
+  test-and-audit:
     runs-on: ubuntu-latest
-
     services:
       redis:
         image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 5
-
-    strategy:
-      matrix:
-        python-version: ['3.11']
-
+        ports: ["6379:6379"]
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-
+          python-version: "3.12"
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-asyncio httpx
-
-      - name: Run tests with coverage
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+      - name: Run pip-audit
+        run: pip-audit --requirement requirements.txt --desc
+      - name: Run Bandit
+        run: bandit -r . -ll -ii
+      - name: Run tests
         env:
-          TEOS_MODE: test
-          PII_SALT: ci-test-salt-placeholder
+          PII_SALT: 0123456789abcdef0123456789abcdef
+          API_KEY_SALT: abcdef0123456789abcdef0123456789
+          DASHBOARD_ADMIN_PASSWORD: supersecure123
+          API_KEY_HASHES_JSON: '[]'
           REDIS_URL: redis://localhost:6379/0
-        run: |
-          pytest tests/ -v \
-            --cov=. \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage.xml \
-            --tb=short
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
+          CELERY_BROKER_URL: redis://localhost:6379/1
+          CELERY_RESULT_BACKEND: redis://localhost:6379/2
+        run: pytest tests/ -v
