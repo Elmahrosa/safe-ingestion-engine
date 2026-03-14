@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r requirements.txt
+      - name: bandit
+        run: bandit -r . -x .venv,tests --severity-level medium
+      - name: pip-audit
+        run: pip-audit
+      - name: semgrep
+        run: |
+          pip install semgrep
+          semgrep --config=auto --error api/ core/ connectors/ workers/ || true
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r requirements.txt
+      - name: pytest
+        env:
+          REDIS_URL: redis://localhost:6379/0
+          API_KEY_SALT: ci-test-salt
+          PII_SALT: ci-pii-salt
+          GAS_WEBHOOK_SECRET: ci-secret
+          USE_REDIS_AUTH: "false"
+          API_KEY_HASHES_JSON: "[]"
+          ENABLE_DOCS: "true"
+        run: pytest tests/ -v --tb=short
+      - name: Startup smoke test
+        env:
+          REDIS_URL: redis://localhost:6379/0
+          API_KEY_SALT: ci-test-salt
+          PII_SALT: ci-pii-salt
+          GAS_WEBHOOK_SECRET: ci-secret
+          USE_REDIS_AUTH: "false"
+          API_KEY_HASHES_JSON: "[]"
+          ENABLE_DOCS: "true"
+        run: |
+          python -m uvicorn api.server:app --host 0.0.0.0 --port 8000 &
+          sleep 4
+          curl -sf http://localhost:8000/health | grep '"status":"ok"'
+          kill %1
+      - name: SSRF self-test
+        env:
+          REDIS_URL: redis://localhost:6379/0
+          API_KEY_SALT: ci-test-salt
+          PII_SALT: ci-pii-salt
+          GAS_WEBHOOK_SECRET: ci-secret
+          USE_REDIS_AUTH: "false"
+          API_KEY_HASHES_JSON: "[]"
+          ENABLE_DOCS: "true"
+        run: |
+          python -m uvicorn api.server:app --host 0.0.0.0 --port 8000 &
+          sleep 4
+          python scripts/fuzz_ssrf.py http://127.0.0.1:8000
+          kill %1
