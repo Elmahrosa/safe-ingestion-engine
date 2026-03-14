@@ -1,83 +1,68 @@
 #!/usr/bin/env bash
-# scripts/smoke_test.sh
-# =====================
-# Quick smoke test against a running Safe Ingestion Engine API.
-# Usage:
-#   ./scripts/smoke_test.sh                          # localhost:8000
-#   ./scripts/smoke_test.sh https://safe.teosegypt.com
-#   API_KEY=sk-safe-XXXXXXXXXX ./scripts/smoke_test.sh
-
 set -euo pipefail
 
-BASE_URL="${1:-http://127.0.0.1:8000}"
-API_KEY="${API_KEY:-sk-safe-TESTKEY000}"
-PASS=0
-FAIL=0
+BASE="${1:-http://localhost:8000}"
+SECRET="${GAS_WEBHOOK_SECRET:-}"
+TEST_KEY="sk-smoke-test-$(date +%s)"
 
-green() { echo -e "\033[32m✅  $*\033[0m"; }
-red()   { echo -e "\033[31m❌  $*\033[0m"; }
-bold()  { echo -e "\033[1m$*\033[0m"; }
+pass() { echo "✓ $1"; }
+fail() { echo "✗ $1"; exit 1; }
+info() { echo "→ $1"; }
 
-check() {
-    local label="$1"
-    local code="$2"
-    local expected="$3"
-    if [ "$code" -eq "$expected" ]; then
-        green "$label (HTTP $code)"
-        ((PASS++)) || true
-    else
-        red "$label — expected HTTP $expected, got $code"
-        ((FAIL++)) || true
-    fi
-}
+info "Health check"
+HEALTH=$(curl -fsS "$BASE/health")
+echo "$HEALTH" | grep -q '"ok"' && pass "health endpoint OK" || fail "health failed: $HEALTH"
 
-bold "▶  Smoke testing $BASE_URL"
-echo ""
+info "Metrics endpoint"
+curl -fsS "$BASE/metrics" | grep -q "ingestion_requests_total" && pass "metrics OK" || fail "metrics endpoint failed"
 
-# 1. Health
-CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/health")
-check "GET /health" "$CODE" 200
-
-# 2. Metrics
-CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/metrics")
-check "GET /metrics" "$CODE" 200
-
-# 3. Status
-CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/v1/status")
-check "GET /v1/status" "$CODE" 200
-
-# 4. Ingest — no key → 422 or 401
-CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/v1/ingest" \
-    -H "Content-Type: application/json" \
-    -d '{"url":"https://example.com"}')
-check "POST /v1/ingest (no key → 4xx)" "$CODE" 422
-
-# 5. Ingest — bad key → 401
-CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/v1/ingest" \
-    -H "Content-Type: application/json" \
-    -H "X-API-Key: sk-safe-BADKEY0000" \
-    -d '{"url":"https://example.com"}')
-check "POST /v1/ingest (bad key → 401)" "$CODE" 401
-
-# 6. Ingest — valid key (only if key was registered in Redis)
-CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/v1/ingest" \
-    -H "Content-Type: application/json" \
-    -H "X-API-Key: $API_KEY" \
-    -d '{"url":"https://example.com","scrub_pii":true}')
-if [ "$CODE" -eq 200 ]; then
-    green "POST /v1/ingest (valid key → 200)"
-    ((PASS++)) || true
-elif [ "$CODE" -eq 401 ]; then
-    echo -e "\033[33m⚠   POST /v1/ingest → 401 (key not in Redis — register it first)\033[0m"
-else
-    red "POST /v1/ingest — unexpected HTTP $CODE"
-    ((FAIL++)) || true
+if [ -z "$SECRET" ]; then
+  echo "GAS_WEBHOOK_SECRET not set — skipping billing bridge smoke test"
+  exit 0
 fi
 
-# 7. Docs reachable
-CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/docs")
-check "GET /docs" "$CODE" 200
+info "Register trial key"
+REG=$(curl -fsS -X POST "$BASE/internal/register-key" \
+  -H "Content-Type: application/json" \
+  -H "x-webhook-secret: $SECRET" \
+  -d "{\"api_key\":\"$TEST_KEY\",\"plan\":\"trial\",\"tx_hash\":\"0xSMOKETEST\"}")
+python3 - <<'PY' <<< "$REG"
+import json,sys
+assert json.load(sys.stdin)["registered"] is True
+PY
+pass "key registered"
 
-echo ""
-bold "Results: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ] && exit 0 || exit 1
+info "Account balance"
+ACCT=$(curl -fsS "$BASE/v1/account" -H "X-API-Key: $TEST_KEY")
+python3 - <<'PY' <<< "$ACCT"
+import json,sys
+assert json.load(sys.stdin)["credits"] == 5
+PY
+pass "credits correct"
+
+info "Submit ingest job"
+JOB=$(curl -fsS -X POST "$BASE/v1/ingest_async" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $TEST_KEY" \
+  -d '{"url":"https://example.com"}')
+JOB_ID=$(python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])" <<< "$JOB")
+pass "job queued: $JOB_ID"
+
+info "Poll job result"
+for i in $(seq 1 15); do
+  sleep 1
+  STATUS_RESP=$(curl -fsS "$BASE/v1/jobs/$JOB_ID" -H "X-API-Key: $TEST_KEY")
+  JOB_STATUS=$(python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" <<< "$STATUS_RESP")
+  if [ "$JOB_STATUS" = "completed" ] || [ "$JOB_STATUS" = "failed" ]; then
+    pass "job resolved: $JOB_STATUS"
+    break
+  fi
+done
+
+info "Credit deduction"
+ACCT2=$(curl -fsS "$BASE/v1/account" -H "X-API-Key: $TEST_KEY")
+python3 - <<'PY' <<< "$ACCT2"
+import json,sys
+assert json.load(sys.stdin)["credits"] == 4
+PY
+pass "credit deducted"

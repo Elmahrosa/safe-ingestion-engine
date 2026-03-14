@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     pii_salt: str
     api_key_salt: str
+    gas_webhook_secret: str = ""
     dashboard_admin_password: str
     api_key_hashes_json: str = "[]"
 
