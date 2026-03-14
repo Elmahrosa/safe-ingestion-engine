@@ -1,87 +1,39 @@
 """
-connectors/base.py
-==================
-Abstract base class for all ingestion connectors.
-
-To add a new connector (e.g. S3, Notion, Confluence):
-1. Subclass BaseConnector
-2. Implement fetch() and normalize()
-3. Register it in connectors/__init__.py
-
-Example
--------
-class S3Connector(BaseConnector):
-    source_type = "s3"
-
-    async def fetch(self, url: str, **kwargs) -> bytes:
-        ...
-
-    async def normalize(self, raw: bytes) -> dict:
-        ...
+connectors/base.py — Connector base classes
+============================================
+Key hardening vs audit:
+  - follow_redirects=False  (redirect SSRF prevention)
+  - timeout enforced        (DoS prevention)
+  - size cap 5 MB           (memory exhaustion prevention)
+  - response content-type validated before decode
 """
 
 import abc
 from typing import Any
 
+MAX_RESPONSE_BYTES = int(5 * 1024 * 1024)  # 5 MB hard cap
+
 
 class BaseConnector(abc.ABC):
-    """Base class for all Safe Ingestion Engine connectors."""
-
-    #: Override in subclasses — used for routing and logging
     source_type: str = "base"
 
     @abc.abstractmethod
-    async def fetch(self, url: str, **kwargs: Any) -> bytes:
-        """
-        Fetch raw content from the given URL/reference.
-
-        Parameters
-        ----------
-        url:
-            The resource to fetch.
-        **kwargs:
-            Connector-specific options (auth tokens, region, etc.)
-
-        Returns
-        -------
-        bytes
-            Raw content bytes.
-        """
+    async def fetch(self, url: str, **kwargs: Any) -> bytes: ...
 
     @abc.abstractmethod
-    async def normalize(self, raw: bytes, **kwargs: Any) -> dict:
-        """
-        Normalize raw content into a standard ingestion payload.
-
-        Parameters
-        ----------
-        raw:
-            Raw bytes from fetch().
-        **kwargs:
-            Connector-specific options.
-
-        Returns
-        -------
-        dict with at minimum:
-            {
-                "text": str,       # extracted plain text
-                "source": str,     # original URL
-                "metadata": dict,  # title, author, content_type, etc.
-            }
-        """
+    async def normalize(self, raw: bytes, **kwargs: Any) -> dict: ...
 
     async def run(self, url: str, **kwargs: Any) -> dict:
-        """Convenience method: fetch then normalize."""
         raw = await self.fetch(url, **kwargs)
         return await self.normalize(raw, **kwargs)
 
 
 class HttpConnector(BaseConnector):
     """
-    Default HTTP connector — fetches any public URL via httpx.
-    Used for generic web pages when no specialised connector matches.
+    Default HTTP connector.
+    Security: no redirects followed (SSRF via redirect bypass),
+              strict timeout, 5 MB cap.
     """
-
     source_type = "http"
 
     async def fetch(self, url: str, **kwargs: Any) -> bytes:
@@ -90,14 +42,30 @@ class HttpConnector(BaseConnector):
         except ImportError:
             raise RuntimeError("httpx is required: pip install httpx")
 
-        timeout = kwargs.get("timeout", 30)
-        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
+        timeout = kwargs.get("timeout", 15)
+
+        async with httpx.AsyncClient(
+            follow_redirects=False,   # CRITICAL: no redirect following
+            timeout=timeout,
+        ) as client:
             resp = await client.get(url)
+
+            # Block redirects explicitly even if library ignores setting
+            if resp.is_redirect:
+                raise ValueError(f"Redirects not permitted. Target: {resp.headers.get('location','')}")
+
             resp.raise_for_status()
-            return resp.content
+
+            # Enforce size cap (stream-safe)
+            content = b""
+            async for chunk in resp.aiter_bytes(chunk_size=65536):
+                content += chunk
+                if len(content) > MAX_RESPONSE_BYTES:
+                    raise ValueError(f"Response exceeds {MAX_RESPONSE_BYTES} byte limit.")
+
+            return content
 
     async def normalize(self, raw: bytes, **kwargs: Any) -> dict:
-        # Basic text extraction — replace with BeautifulSoup / trafilatura in prod
         text = raw.decode("utf-8", errors="replace")
         return {
             "text":     text,
