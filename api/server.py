@@ -1,37 +1,57 @@
-from __future__ import annotations
+"""
+api/server.py — Safe Ingestion Engine · single app entrypoint
+=============================================================
+Run with:
+    python -m uvicorn api.server:app --host 0.0.0.0 --port 8000 --reload
+
+Production (Docker):
+    CMD ["uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+"""
+
+import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
-from slowapi import _rate_limit_exceeded_handler
 
-from api.routes.ingest import router as ingest_router
+from api.routes.ingest  import router as ingest_router
 from api.routes.metrics import router as metrics_router
-from core.config import get_settings
-from core.database import init_db
-from core.logging import configure_logging
+
+VERSION = open("VERSION").read().strip() if os.path.exists("VERSION") else "1.0.0"
 
 
-settings = get_settings()
-configure_logging(settings.log_level)
-init_db()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup
+    yield
+    # shutdown — nothing to clean up yet
 
-app = FastAPI(title="Safe Ingestion Engine", version="2.0.0")
-app.add_middleware(SlowAPIMiddleware)
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app = FastAPI(
+    title="Safe Ingestion Engine",
+    description=(
+        "PII-scrubbing URL ingestion API. "
+        "Authenticate with `X-API-Key: sk-safe-XXXXXXXXXX`."
+    ),
+    version=VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=["https://safe.teosegypt.com"],
     allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    allow_headers=["X-API-Key", "Content-Type"],
 )
 
+# ── Routers ────────────────────────────────────────────────────────────────────
 app.include_router(ingest_router)
 app.include_router(metrics_router)
 
 
-@app.get("/health")
-async def health() -> dict:
-    return {"status": "ok", "version": "2.0.0"}
+# ── Health ─────────────────────────────────────────────────────────────────────
+@app.get("/health", tags=["Health"])
+async def health():
+    return {"status": "ok", "version": VERSION}

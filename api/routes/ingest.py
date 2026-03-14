@@ -1,65 +1,121 @@
-from __future__ import annotations
+"""
+api/routes/ingest.py
+====================
+POST /v1/ingest        — submit a URL for async ingestion
+GET  /v1/jobs/{job_id} — poll job status
+POST /internal/register-key — GAS billing bridge (webhook)
+"""
 
+import hashlib
+import os
 import uuid
+from datetime import datetime, timezone
+from typing import Optional
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Header, status
 from pydantic import BaseModel, HttpUrl
 
-from api.dependencies import require_api_key
-from api.routes.metrics import REQUEST_COUNT, REQUEST_DURATION
-from core.auth import hash_api_key
-from core.config import get_settings
-from core.database import session_scope
-from core.models import Job
-from infrastructure.queue.tasks import ingest_url_task
-from security.rate_limit import limiter
-
+from core.auth import require_api_key, register_key
 
 router = APIRouter()
-settings = get_settings()
-redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
 
+REDIS_URL           = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+GAS_WEBHOOK_SECRET  = os.getenv("GAS_WEBHOOK_SECRET", "")
+MAX_URLS            = int(os.getenv("MAX_INGEST_URLS_PER_REQUEST", "10"))
+
+_r = redis.from_url(REDIS_URL, decode_responses=True)
+
+
+# ── Schemas ───────────────────────────────────────────────────────────────────
 
 class IngestRequest(BaseModel):
     url: HttpUrl
-    idempotency_key: str | None = None
+    scrub_pii: bool = True
+    webhook_url: Optional[str] = None
 
 
-@router.post("/v1/ingest_async")
-@limiter.limit("10/minute")
-async def enqueue_ingest(
-    request: Request,
-    payload: IngestRequest,
+class IngestResponse(BaseModel):
+    job_id: str
+    status: str
+    submitted_at: str
+
+
+class JobStatus(BaseModel):
+    job_id: str
+    status: str          # queued | processing | done | failed
+    result: Optional[dict] = None
+    error: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class RegisterKeyRequest(BaseModel):
+    api_key: str
+    secret: str
+    ttl_days: int = 31
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+
+@router.post("/v1/ingest", response_model=IngestResponse, tags=["Ingestion"])
+async def submit_ingest(
+    body: IngestRequest,
     api_key: str = Depends(require_api_key),
 ):
-    with REQUEST_DURATION.time():
-        try:
-            if payload.idempotency_key:
-                cache_key = f"idempotent:{payload.idempotency_key}"
-                existing = redis_client.get(cache_key)
-                if existing:
-                    REQUEST_COUNT.labels(status="duplicate").inc()
-                    return {"job_id": existing, "status": "duplicate"}
+    """Submit a single URL for async PII-scrubbed ingestion."""
+    job_id = str(uuid.uuid4())
+    now    = datetime.now(timezone.utc).isoformat()
 
-            job_id = str(uuid.uuid4())
-            with session_scope() as session:
-                session.add(
-                    Job(
-                        job_id=job_id,
-                        source_url=str(payload.url),
-                        status="queued",
-                        api_key_hash=hash_api_key(api_key),
-                    )
-                )
+    # Store job metadata in Redis (TTL 24 h)
+    _r.hset(f"job:{job_id}", mapping={
+        "status":     "queued",
+        "url":        str(body.url),
+        "scrub_pii":  str(body.scrub_pii),
+        "api_key":    api_key,
+        "created_at": now,
+        "updated_at": now,
+    })
+    _r.expire(f"job:{job_id}", 86400)
 
-            ingest_url_task.delay(job_id=job_id)
+    # TODO: push to Celery — currently stubbed
+    # from workers.tasks import ingest_url
+    # ingest_url.delay(job_id, str(body.url), body.scrub_pii)
 
-            if payload.idempotency_key:
-                redis_client.setex(cache_key, 86400, job_id)
+    return IngestResponse(job_id=job_id, status="queued", submitted_at=now)
 
-            REQUEST_COUNT.labels(status="queued").inc()
-            return {"job_id": job_id, "status": "queued"}
-        except Exception as exc:
-            REQUEST_COUNT.labels(status="error").inc()
-            raise HTTPException(status_code=500, detail=f"failed to enqueue job: {exc}") from exc
+
+@router.get("/v1/jobs/{job_id}", response_model=JobStatus, tags=["Ingestion"])
+async def get_job_status(
+    job_id: str,
+    api_key: str = Depends(require_api_key),
+):
+    """Poll the status of a previously submitted ingestion job."""
+    data = _r.hgetall(f"job:{job_id}")
+    if not data:
+        raise HTTPException(status_code=404, detail="Job not found or expired.")
+    return JobStatus(
+        job_id=job_id,
+        status=data.get("status", "unknown"),
+        result=None,          # populated by worker when done
+        error=data.get("error"),
+        created_at=data.get("created_at"),
+        updated_at=data.get("updated_at"),
+    )
+
+
+@router.post("/internal/register-key", tags=["Internal"], include_in_schema=False)
+async def register_api_key(body: RegisterKeyRequest):
+    """
+    GAS billing bridge — called by Google Apps Script after payment confirmation.
+    Requires GAS_WEBHOOK_SECRET header match.
+    NOT included in public /docs.
+    """
+    if not GAS_WEBHOOK_SECRET:
+        raise HTTPException(status_code=503, detail="Webhook secret not configured.")
+    if body.secret != GAS_WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid webhook secret.")
+
+    ttl = body.ttl_days * 86400
+    register_key(body.api_key, ttl=ttl)
+    return {"ok": True, "message": "Key registered."}
