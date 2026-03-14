@@ -2,7 +2,7 @@
 
 <br/>
 
-<img src="https://raw.githubusercontent.com/Elmahrosa/safe-ingestion-engine/main/logo.png" width="100" alt="Safe Ingestion Engine"/>
+![Safe Ingestion Engine](https://img.shields.io/badge/Safe_Ingestion-Engine-00d4aa?style=for-the-badge&logo=shield&logoColor=white)
 
 <br/><br/>
 
