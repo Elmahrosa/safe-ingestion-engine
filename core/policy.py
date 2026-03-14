@@ -1,5 +1,5 @@
-import socket
-import ipaddress
+from __future__ import annotations
+
 from urllib.parse import urlparse
 import urllib.robotparser
 
@@ -28,7 +28,6 @@ class CrawlBudgetService:
                     if current_count >= limit:
                         pipe.unwatch()
                         return False
-
                     pipe.multi()
                     pipe.incr(key, 1)
                     if current_count == 0:
@@ -43,27 +42,21 @@ class PolicyEngine:
     def __init__(self, redis_client: redis.Redis):
         self.crawl_budget = CrawlBudgetService(redis_client)
 
-    def evaluate(self, url: str, user_agent: str = "*", limit: int = 1000) -> dict:
+    def check_robots(self, url: str, user_agent: str = "*") -> bool:
         parsed = urlparse(url)
         robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
-
         parser = urllib.robotparser.RobotFileParser()
         parser.set_url(robots_url)
-
         try:
             parser.read()
-            allowed_by_robots = parser.can_fetch(user_agent, url)
+            return parser.can_fetch(user_agent, url)
         except Exception as exc:
-            logger.warning("robots.check_failed", url=url, robots_url=robots_url, error=str(exc))
+            logger.warning("robots.check_failed", url=url, robots_url=robots_url, error=str(exc), security_event=True)
             allowed_by_robots = settings.robots_error_mode == "allow"
+            if allowed_by_robots:
+                logger.warning("robots.fail_open", url=url, mode="allow", security_event=True)
+            return allowed_by_robots
 
-        if not allowed_by_robots:
-            return {"allowed": False, "reason": "robots policy denied"}
-
-        if not self.crawl_budget.check_and_increment(parsed.netloc, limit):
-            return {"allowed": False, "reason": "crawl budget exceeded"}
-
-        return {"allowed": True, "reason": "allowed"}
-
-    def decide(self, url: str) -> bool:
-        return self.evaluate(url)["allowed"]
+    def check_budget(self, url: str, limit: int = 1000) -> bool:
+        parsed = urlparse(url)
+        return self.crawl_budget.check_and_increment(parsed.netloc, limit)

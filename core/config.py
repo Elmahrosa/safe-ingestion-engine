@@ -1,5 +1,7 @@
-from functools import lru_cache
+from __future__ import annotations
+
 import json
+from functools import lru_cache
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,11 +21,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     database_url: str = "sqlite:///./data/jobs.db"
-    redis_url: str = "redis://redis:6379/0"
-    celery_broker_url: str = "redis://redis:6379/1"
-    celery_result_backend: str = "redis://redis:6379/2"
+    redis_url: str = "redis://localhost:6379/0"
+    celery_broker_url: str = "redis://localhost:6379/1"
+    celery_result_backend: str = "redis://localhost:6379/2"
 
     pii_salt: str
+    api_key_salt: str
     dashboard_admin_password: str
     api_key_hashes_json: str = "[]"
 
@@ -32,12 +35,13 @@ class Settings(BaseSettings):
     robots_error_mode: str = "deny"
     allow_redirects: bool = False
     rate_limit_per_minute: int = 10
+    cors_origins_json: str = "[]"
 
-    @field_validator("pii_salt")
+    @field_validator("pii_salt", "api_key_salt")
     @classmethod
-    def validate_pii_salt(cls, v: str) -> str:
+    def validate_salt(cls, v: str) -> str:
         if not v or len(v) < 32:
-            raise ValueError("PII_SALT must be at least 32 characters")
+            raise ValueError("salt values must be at least 32 characters")
         return v
 
     @field_validator("dashboard_admin_password")
@@ -60,6 +64,13 @@ class Settings(BaseSettings):
         value = json.loads(self.api_key_hashes_json)
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
             raise ValueError("API_KEY_HASHES_JSON must be a JSON array of strings")
+        return value
+
+    @property
+    def cors_origins(self) -> list[str]:
+        value = json.loads(self.cors_origins_json)
+        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            raise ValueError("CORS_ORIGINS_JSON must be a JSON array of strings")
         return value
 
 

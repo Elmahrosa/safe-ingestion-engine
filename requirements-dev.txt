@@ -1,9 +1,3 @@
 -r requirements.txt
-pytest
-pytest-cov
-pytest-asyncio
-httpx
-ruff
-mypy
-types-requests
-bandit[toml]
+pytest-cov>=6.2.1
+pytest-xdist>=3.8.0
