@@ -1,144 +1,149 @@
-"""
-api/routes/ingest.py
-====================
-POST /v1/ingest        — submit a URL for async ingestion
-GET  /v1/jobs/{job_id} — poll job status (key-scoped, no enum)
-POST /internal/register-key — GAS billing bridge (hidden from docs)
+from __future__ import annotations
 
-Audit fixes applied
--------------------
-  CVSS 8.2  SSRF          -> ssrf_safe_url() on every URL before queuing
-  CVSS 7.5  Job enum      -> UUIDv4 job IDs + assert_job_owner() on GET
-  CVSS 6.5  Rate limits   -> slowapi @limiter.limit on ingest + register-key
-  Timing    Secret check  -> hmac.compare_digest (constant-time)
-"""
-
-import hmac
-import os
+import secrets
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, HttpUrl
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from sqlalchemy import select
 
-from core.auth import require_api_key, register_key
-from core.security import ssrf_safe_url, assert_job_owner, RATE_INGEST, RATE_AUTH
+from api.dependencies import require_api_key
+from api.routes.metrics import REQUEST_COUNT, REQUEST_DURATION
+from core.auth import deduct_credit, get_key_info, hash_api_key, register_api_key
+from core.config import get_settings
+from core.database import session_scope
+from core.models import Job
+from infrastructure.queue.tasks import ingest_url_task
+from security.rate_limit import limiter
 
-router  = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
+router = APIRouter()
+settings = get_settings()
+redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
 
-REDIS_URL          = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-GAS_WEBHOOK_SECRET = os.getenv("GAS_WEBHOOK_SECRET", "")
+PLAN_CREDITS = {
+    "trial": 5,
+    "starter": 100,
+    "growth": 1000,
+    "enterprise": 50000,
+}
 
-_r = redis.from_url(REDIS_URL, decode_responses=True)
-
-
-# ── Schemas ───────────────────────────────────────────────────────────────────
 
 class IngestRequest(BaseModel):
     url: HttpUrl
-    scrub_pii: bool = True
-    webhook_url: Optional[str] = None
+    idempotency_key: str | None = None
 
 
-class IngestResponse(BaseModel):
-    job_id: str
-    status: str
-    submitted_at: str
-
-
-class JobStatus(BaseModel):
-    job_id: str
-    status: str
-    result: Optional[dict] = None
-    error: Optional[str] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-
-
-class RegisterKeyRequest(BaseModel):
+class RegisterKeyPayload(BaseModel):
     api_key: str
-    secret: str
-    ttl_days: int = 31
+    plan: str = "starter"
+    credits: int | None = None
+    tx_hash: str | None = None
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
-
-@router.post("/v1/ingest", response_model=IngestResponse, tags=["Ingestion"])
-@limiter.limit(RATE_INGEST)
-async def submit_ingest(
+@router.post("/v1/ingest_async")
+@limiter.limit("10/minute")
+async def enqueue_ingest(
     request: Request,
-    body: IngestRequest,
+    payload: IngestRequest,
     api_key: str = Depends(require_api_key),
 ):
-    """Submit a single URL for async PII-scrubbed ingestion."""
-    # SSRF guard — rejects private IPs, IPv6 loopback, decimal IPs, xip.io tricks
-    ssrf_safe_url(str(body.url))
+    with REQUEST_DURATION.time():
+        try:
+            if payload.idempotency_key:
+                cache_key = f"idempotent:{payload.idempotency_key}"
+                existing = redis_client.get(cache_key)
+                if existing:
+                    REQUEST_COUNT.labels(status="duplicate").inc()
+                    return {"job_id": existing, "status": "duplicate"}
 
-    job_id = str(uuid.uuid4())   # UUIDv4 — not guessable/sequential
-    now    = datetime.now(timezone.utc).isoformat()
+            if not deduct_credit(api_key):
+                REQUEST_COUNT.labels(status="no_credits").inc()
+                raise HTTPException(
+                    status_code=402,
+                    detail="insufficient credits — top up before submitting another job",
+                )
 
-    _r.hset(f"job:{job_id}", mapping={
-        "status":     "queued",
-        "url":        str(body.url),
-        "scrub_pii":  str(body.scrub_pii),
-        "api_key":    api_key,
-        "created_at": now,
-        "updated_at": now,
-    })
-    _r.expire(f"job:{job_id}", 86400)
+            job_id = str(uuid.uuid4())
+            with session_scope() as session:
+                session.add(
+                    Job(
+                        job_id=job_id,
+                        source_url=str(payload.url),
+                        status="queued",
+                        api_key_hash=hash_api_key(api_key),
+                    )
+                )
 
-    # TODO: push to Celery — JSON serializer only (no pickle)
-    # from workers.tasks import ingest_url
-    # ingest_url.apply_async(args=[job_id, str(body.url), body.scrub_pii],
-    #                        serializer="json")
+            ingest_url_task.delay(job_id=job_id)
 
-    return IngestResponse(job_id=job_id, status="queued", submitted_at=now)
+            if payload.idempotency_key:
+                redis_client.setex(cache_key, 86400, job_id)
 
-
-@router.get("/v1/jobs/{job_id}", response_model=JobStatus, tags=["Ingestion"])
-@limiter.limit("120/minute")
-async def get_job_status(
-    request: Request,
-    job_id: str,
-    api_key: str = Depends(require_api_key),
-):
-    """
-    Poll job status. Returns 404 for non-existent OR cross-key jobs.
-    Never 403 — avoids confirming whether a job exists to the wrong key.
-    """
-    data = _r.hgetall(f"job:{job_id}")
-    if not data:
-        raise HTTPException(status_code=404, detail="Job not found or expired.")
-
-    assert_job_owner(data, api_key)
-
-    return JobStatus(
-        job_id=job_id,
-        status=data.get("status", "unknown"),
-        result=None,
-        error=data.get("error"),
-        created_at=data.get("created_at"),
-        updated_at=data.get("updated_at"),
-    )
+            REQUEST_COUNT.labels(status="queued").inc()
+            return {"job_id": job_id, "status": "queued"}
+        except HTTPException:
+            raise
+        except Exception as exc:
+            REQUEST_COUNT.labels(status="error").inc()
+            raise HTTPException(status_code=500, detail=f"failed to enqueue job: {exc}") from exc
 
 
-@router.post("/internal/register-key", tags=["Internal"], include_in_schema=False)
-@limiter.limit(RATE_AUTH)
-async def register_api_key(request: Request, body: RegisterKeyRequest):
-    """
-    GAS billing bridge. Rate-limited + constant-time secret compare.
-    NOT exposed in /docs.
-    """
-    if not GAS_WEBHOOK_SECRET:
-        raise HTTPException(status_code=503, detail="Webhook secret not configured.")
+@router.get("/v1/jobs/{job_id}")
+async def get_job(job_id: str, api_key: str = Depends(require_api_key)):
+    key_hash = hash_api_key(api_key)
+    with session_scope() as session:
+        job = session.scalar(
+            select(Job).where(
+                Job.job_id == job_id,
+                Job.api_key_hash == key_hash,
+            )
+        )
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
 
-    if not hmac.compare_digest(body.secret, GAS_WEBHOOK_SECRET):
-        raise HTTPException(status_code=403, detail="Invalid webhook secret.")
+        return {
+            "job_id": job.job_id,
+            "status": job.status,
+            "source_url": job.source_url,
+            "pii_found": job.pii_found,
+            "result_excerpt": job.result_excerpt,
+            "error_message": job.error_message,
+            "created_at": job.created_at.isoformat(),
+            "updated_at": job.updated_at.isoformat(),
+        }
 
-    register_key(body.api_key, ttl=body.ttl_days * 86400)
-    return {"ok": True, "message": "Key registered."}
+
+@router.get("/v1/account")
+async def get_account(api_key: str = Depends(require_api_key)):
+    info = get_key_info(api_key)
+    if not info["valid"]:
+        raise HTTPException(status_code=401, detail="invalid api key")
+    return info
+
+
+@router.post("/internal/register-key")
+async def register_key(request: Request, payload: RegisterKeyPayload):
+    incoming_secret = request.headers.get("x-webhook-secret", "")
+    if not settings.gas_webhook_secret:
+        raise HTTPException(status_code=500, detail="webhook secret not configured on server")
+    if not secrets.compare_digest(incoming_secret, settings.gas_webhook_secret):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    plan = payload.plan.lower()
+    if plan not in PLAN_CREDITS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown plan '{plan}'. valid: {sorted(PLAN_CREDITS)}",
+        )
+
+    credits = payload.credits if payload.credits is not None else PLAN_CREDITS[plan]
+    key_hash = register_api_key(payload.api_key, credits=credits, plan=plan)
+
+    return {
+        "registered": True,
+        "hash_preview": key_hash[:12],
+        "plan": plan,
+        "credits": credits,
+        "tx_hash": payload.tx_hash,
+    }

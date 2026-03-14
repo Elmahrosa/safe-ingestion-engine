@@ -1,78 +1,86 @@
-"""
-core/auth.py — API key authentication
-======================================
-Hardening vs audit:
-  - Argon2id replaces bare SHA-256 (brute-force resistance)
-  - Falls back to SHA-256 if argon2-cffi not installed (backward compat)
-  - Per-key salt stored alongside hash (not global PII_SALT reuse)
-  - Constant-time compare everywhere
-"""
+from __future__ import annotations
 
 import hashlib
 import hmac
-import json
-import os
-from functools import lru_cache
 
-import redis
-from fastapi import Header, HTTPException, status
+import redis as redis_lib
 
-REDIS_URL       = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-API_KEY_SALT    = os.getenv("API_KEY_SALT", "")
-USE_REDIS_AUTH  = os.getenv("USE_REDIS_AUTH", "true").lower() == "true"
-STATIC_HASHES   = set(json.loads(os.getenv("API_KEY_HASHES_JSON", "[]")))
-KEY_TTL_SECONDS = 60 * 60 * 24 * 31
+from core.config import get_settings
+
+_redis_client: redis_lib.Redis | None = None
 
 
-@lru_cache(maxsize=1)
-def _redis_client() -> redis.Redis:
-    return redis.from_url(REDIS_URL, decode_responses=True)
-
-
-def hash_key(raw_key: str) -> str:
-    """Salted SHA-256. Upgrade path: swap for Argon2id in prod (see below)."""
-    return hashlib.sha256(f"{API_KEY_SALT}{raw_key}".encode()).hexdigest()
-
-
-def hash_key_strong(raw_key: str) -> str:
-    """
-    Argon2id hash — preferred for new deployments.
-    Requires: pip install argon2-cffi
-    Falls back to SHA-256 if library unavailable.
-    """
-    try:
-        from argon2 import PasswordHasher
-        ph = PasswordHasher(time_cost=2, memory_cost=65536, parallelism=2)
-        return ph.hash(f"{API_KEY_SALT}{raw_key}")
-    except ImportError:
-        return hash_key(raw_key)
-
-
-def register_key(raw_key: str, ttl: int = KEY_TTL_SECONDS) -> None:
-    digest  = hash_key(raw_key)
-    _redis_client().setex(f"apikey:{digest}", ttl, "1")
-
-
-def revoke_key(raw_key: str) -> None:
-    digest = hash_key(raw_key)
-    _redis_client().delete(f"apikey:{digest}")
-
-
-def is_valid_key(raw_key: str) -> bool:
-    if not raw_key:
-        return False
-    digest = hash_key(raw_key)
-    if USE_REDIS_AUTH:
-        return _redis_client().exists(f"apikey:{digest}") == 1
-    # Constant-time compare against static list
-    return any(hmac.compare_digest(digest, h) for h in STATIC_HASHES)
-
-
-def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")) -> str:
-    if not is_valid_key(x_api_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired API key.",
-            headers={"WWW-Authenticate": "ApiKey"},
+def _get_redis() -> redis_lib.Redis:
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis_lib.Redis.from_url(
+            get_settings().redis_url, decode_responses=True
         )
-    return x_api_key
+    return _redis_client
+
+
+def hash_api_key(api_key: str, salt: str | None = None) -> str:
+    settings = get_settings()
+    secret = (salt or settings.api_key_salt).encode("utf-8")
+    return hmac.new(secret, api_key.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def register_api_key(api_key: str, credits: int = 100, plan: str = "starter") -> str:
+    """Store a newly issued API key in Redis and return its hash preview-safe value."""
+    key_hash = hash_api_key(api_key)
+    r = _get_redis()
+    r.hset("api_keys", key_hash, credits)
+    r.hset("api_meta", key_hash, plan)
+    return key_hash
+
+
+def is_valid_api_key(api_key: str) -> bool:
+    key_hash = hash_api_key(api_key)
+    return _get_redis().hexists("api_keys", key_hash)
+
+
+def get_credits(api_key: str) -> int:
+    key_hash = hash_api_key(api_key)
+    value = _get_redis().hget("api_keys", key_hash)
+    return int(value) if value is not None else 0
+
+
+def deduct_credit(api_key: str) -> bool:
+    """Atomically deduct one credit. Returns False when no credits remain."""
+    key_hash = hash_api_key(api_key)
+    redis_client = _get_redis()
+    bucket = "api_keys"
+
+    with redis_client.pipeline() as pipe:
+        while True:
+            try:
+                pipe.watch(bucket)
+                current = redis_client.hget(bucket, key_hash)
+                credits = int(current) if current is not None else 0
+                if credits <= 0:
+                    pipe.unwatch()
+                    return False
+                pipe.multi()
+                pipe.hincrby(bucket, key_hash, -1)
+                pipe.execute()
+                return True
+            except redis_lib.WatchError:
+                continue
+
+
+def add_credits(api_key: str, amount: int) -> int:
+    key_hash = hash_api_key(api_key)
+    return int(_get_redis().hincrby("api_keys", key_hash, amount))
+
+
+def get_key_info(api_key: str) -> dict:
+    key_hash = hash_api_key(api_key)
+    redis_client = _get_redis()
+    credits = redis_client.hget("api_keys", key_hash)
+    plan = redis_client.hget("api_meta", key_hash)
+    return {
+        "valid": credits is not None,
+        "credits": int(credits) if credits is not None else 0,
+        "plan": plan or "unknown",
+        "hash_preview": key_hash[:12],
+    }
