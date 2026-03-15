@@ -1,14 +1,4 @@
-notepad README.md
-```
 
-Notepad will open the file. Select all (`Ctrl+A`), delete, then paste the full README below.
-
----
-
-Copy everything between the two `---PASTE---` markers and paste into Notepad, then save and close:
-
----PASTE---
-```
 # Safe Ingestion Engine
 
 > **Compliance-first web data ingestion API for AI agents and developers.**
