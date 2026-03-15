@@ -3,41 +3,72 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Safe Ingestion Engine — For Sale</title>
+<title>Safe Ingestion Engine — Compliance Infrastructure for AI Agents</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #e0e0e0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
-  .card { max-width: 640px; width: 100%; }
-  .badge { display: inline-block; background: #1a3a1a; color: #4ade80; border: 1px solid #166534; border-radius: 999px; font-size: 12px; padding: 4px 12px; margin-bottom: 24px; }
-  h1 { font-size: 36px; font-weight: 700; color: #fff; margin-bottom: 12px; }
-  .sub { font-size: 16px; color: #9ca3af; margin-bottom: 32px; line-height: 1.6; }
-  .features { background: #111; border: 1px solid #222; border-radius: 12px; padding: 24px; margin-bottom: 32px; }
-  .features h2 { font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
-  .feature { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 14px; color: #d1d5db; }
-  .feature span.dot { color: #4ade80; font-size: 18px; }
-  .pricing { background: #111; border: 1px solid #333; border-radius: 12px; padding: 24px; margin-bottom: 32px; }
-  .pricing h2 { font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
-  .price-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1f1f1f; font-size: 14px; }
-  .price-row:last-child { border-bottom: none; }
-  .price-row .label { color: #9ca3af; }
-  .price-row .value { color: #fff; font-weight: 600; }
-  .cta { display: flex; flex-direction: column; gap: 12px; }
-  .btn { display: block; text-align: center; padding: 14px 24px; border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none; transition: opacity 0.2s; }
-  .btn:hover { opacity: 0.85; }
-  .btn-primary { background: #16a34a; color: #fff; }
-  .btn-secondary { background: #111; color: #e0e0e0; border: 1px solid #333; }
-  .btn-github { background: #1f2937; color: #e0e0e0; border: 1px solid #374151; }
-  .footer { margin-top: 32px; text-align: center; font-size: 12px; color: #4b5563; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#e0e0e0;padding:32px 20px}
+.wrap{max-width:680px;margin:0 auto}
+.badge{display:inline-block;background:#1a3a1a;color:#4ade80;border:1px solid #166534;border-radius:999px;font-size:12px;padding:4px 14px;margin-bottom:20px}
+h1{font-size:42px;font-weight:800;color:#fff;margin-bottom:12px;letter-spacing:-1px}
+.sub{font-size:16px;color:#9ca3af;margin-bottom:32px;line-height:1.7}
+.score-box{background:#111;border:1px solid #1f2937;border-radius:12px;padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;gap:20px}
+.score-num{font-size:52px;font-weight:800;color:#4ade80;line-height:1;flex-shrink:0}
+.score-text{font-size:13px;color:#6b7280;line-height:1.8}
+.score-text strong{color:#d1d5db;display:block;font-size:15px;margin-bottom:4px}
+.box{background:#111;border:1px solid #1f2937;border-radius:12px;padding:22px 24px;margin-bottom:20px}
+.box h2{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px}
+.feat{display:flex;gap:10px;margin-bottom:10px;font-size:14px;color:#d1d5db;line-height:1.5}
+.feat .ok{color:#4ade80;flex-shrink:0}
+.row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #1a1a1a;font-size:14px}
+.row:last-child{border-bottom:none}
+.row .k{color:#9ca3af}
+.row .v{color:#fff;font-weight:700}
+.cta{display:flex;flex-direction:column;gap:10px;margin-bottom:28px}
+.btn{display:block;text-align:center;padding:15px 20px;border-radius:10px;font-size:15px;font-weight:700;text-decoration:none}
+.g{background:#16a34a;color:#fff}
+.p{background:#1e1b4b;color:#a5b4fc;border:1px solid #3730a3}
+.d{background:#111;color:#e0e0e0;border:1px solid #2a2a2a}
+.foot{text-align:center;font-size:12px;color:#4b5563;line-height:2}
+code{background:#1a1a1a;color:#a5b4fc;padding:2px 8px;border-radius:4px;font-size:13px}
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="badge">🟢 Available — Repo + Codebase For Sale or License</div>
-  <h1>Safe Ingestion Engine</h1>
-  <p class="sub">Compliance-first web data ingestion API for AI agents.<br>PII auto-redacted. robots.txt enforced. SSRF blocked. Every request logged immutably.</p>
+<div class="wrap">
 
-  <div class="features">
-    <h2>What You Get</h2>
-    <div class="feature"><span class="dot">✓</span> FastAPI backend — production-hardened, async, Redis + Celery</div>
-    <div class="feature"><span class="dot">✓</span> PII scrubber — email, phone, SSN, IPv4, credit card auto-redacted</div>
-    <div class="feature"><span class="dot">✓</span> SSRF guard — async DNS blocks priva
+<div class="badge">🟢 Available — Repo + Codebase For Sale or License</div>
+<h1>Safe Ingestion Engine</h1>
+<p class="sub">Compliance-first web data ingestion infrastructure for AI agents and enterprise pipelines.<br>Governance enforced at the pipeline layer — not bolted on after.</p>
+
+<div class="score-box">
+  <div class="score-num">7.2</div>
+  <div class="score-text">
+    <strong>Engineering Maturity Score / 10</strong>
+    3 independent security audits · 30 issues identified and patched<br>
+    Architecture 8/10 · Security 8/10 · Production Readiness 7/10
+  </div>
+</div>
+
+<div class="box">
+  <h2>Core Guarantees</h2>
+  <div class="feat"><span class="ok">✓</span>PII auto-redacted — email, phone, SSN, IPv4, credit card, names via Presidio NLP</div>
+  <div class="feat"><span class="ok">✓</span>SSRF impossible — async DNS + connect-time revalidation + redirect filter</div>
+  <div class="feat"><span class="ok">✓</span>robots.txt structural enforcement — policy engine before every fetch, never advisory</div>
+  <div class="feat"><span class="ok">✓</span>YAML per-domain rules — allow/deny, path blocking, crawl budgets</div>
+  <div class="feat"><span class="ok">✓</span>Content hash — sha256(content) stored per job for deduplication</div>
+  <div class="feat"><span class="ok">✓</span>x402 USDC payments on Base — agent-native, no signup required</div>
+  <div class="feat"><span class="ok">✓</span>MCP server — works natively with Claude, Cursor, Windsurf</div>
+  <div class="feat"><span class="ok">✓</span>Immutable audit log — tamper-evident, PDF exportable</div>
+  <div class="feat"><span class="ok">✓</span>Atomic credit deduction — Redis WATCH/MULTI/EXEC, TOCTOU eliminated</div>
+  <div class="feat"><span class="ok">✓</span>API key never in Celery queue — isolated from Redis task payload</div>
+  <div class="feat"><span class="ok">✓</span>Next.js dashboard — Ingest, Jobs, Audit, Metrics UI included</div>
+  <div class="feat"><span class="ok">✓</span>Full test suite + 3 security audit docs included</div>
+</div>
+
+<div class="box">
+  <h2>Tech Stack</h2>
+  <div class="feat"><span class="ok">→</span>FastAPI + Celery (gevent) + Redis — production-hardened async pipeline</div>
+  <div class="feat"><span class="ok">→</span>Docker + docker-compose — one command deploy</div>
+  <div class="feat"><span class="ok">→</span>SQLite (dev) → PostgreSQL (production)</div>
+  <div class="feat"><span class="ok">→</span>Prometheus metrics — Grafana ready</div>
+  <div class="feat"><span class="ok">→</span>structlog JSON logging — ELK / Loki ready</div>
+  <div class="feat">
