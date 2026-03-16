@@ -1,15 +1,25 @@
 from __future__ import annotations
 
+from pathlib import Path
 from urllib.parse import urlparse
 import urllib.robotparser
 
 import redis
+import yaml
 
 from core.config import get_settings
 from core.logging import logger
 
-
 settings = get_settings()
+
+RULES_PATH = Path(__file__).parent.parent / "policies" / "rules.yaml"
+
+
+def _load_rules() -> dict:
+    if RULES_PATH.exists():
+        with open(RULES_PATH) as f:
+            return yaml.safe_load(f) or {}
+    return {"default": "allow", "domains": []}
 
 
 class CrawlBudgetService:
@@ -37,10 +47,94 @@ class CrawlBudgetService:
                 except redis.WatchError:
                     continue
 
+    def get_count(self, domain: str) -> int:
+        val = self.redis.get(f"crawl:{domain}")
+        return int(val) if val else 0
+
+
+class DomainConcurrencyService:
+    def __init__(self, redis_client: redis.Redis):
+        self.redis = redis_client
+
+    def acquire(self, domain: str, max_concurrent: int) -> bool:
+        key = f"concurrent:{domain}"
+        current = int(self.redis.get(key) or 0)
+        if current >= max_concurrent:
+            return False
+        self.redis.incr(key)
+        self.redis.expire(key, 300)
+        return True
+
+    def release(self, domain: str) -> None:
+        key = f"concurrent:{domain}"
+        val = int(self.redis.get(key) or 0)
+        if val > 0:
+            self.redis.decr(key)
+
 
 class PolicyEngine:
     def __init__(self, redis_client: redis.Redis):
         self.crawl_budget = CrawlBudgetService(redis_client)
+        self.concurrency = DomainConcurrencyService(redis_client)
+        self._rules = _load_rules()
+
+    def _get_domain_rule(self, domain: str) -> dict | None:
+        for rule in self._rules.get("domains", []):
+            if rule.get("domain") == domain:
+                return rule
+        return None
+
+    def evaluate(self, url: str) -> tuple[bool, str]:
+        """
+        Returns (allowed, reason).
+        Checks YAML rules first, then robots.txt, then crawl budget.
+        """
+        parsed = urlparse(url)
+        domain = parsed.netloc
+
+        # 1. YAML domain rules
+        rule = self._get_domain_rule(domain)
+        if rule is not None:
+            if not rule.get("allow", True):
+                reason = rule.get("reason", "domain blocked by policy")
+                logger.warning("policy.yaml_blocked", url=url, domain=domain,
+                               reason=reason, security_event=True)
+                return False, reason
+
+            # Check blocked paths
+            for blocked_path in rule.get("blocked_paths", []):
+                if parsed.path.startswith(blocked_path):
+                    logger.warning("policy.path_blocked", url=url, domain=domain,
+                                   path=parsed.path, security_event=True)
+                    return False, f"path blocked by policy: {blocked_path}"
+
+            # Crawl budget
+            budget = rule.get("crawl_budget", 1000)
+            if not self.crawl_budget.check_and_increment(domain, budget):
+                logger.warning("policy.budget_exceeded", url=url, domain=domain,
+                               security_event=True)
+                return False, "crawl budget exceeded"
+
+            # Domain concurrency
+            max_concurrent = rule.get("max_concurrent", 2)
+            if not self.concurrency.acquire(domain, max_concurrent):
+                return False, "domain concurrency limit reached"
+
+        else:
+            # Default policy
+            default = self._rules.get("default", "allow")
+            if default == "deny":
+                return False, "domain not in allowlist"
+
+            # Default budget
+            if not self.crawl_budget.check_and_increment(domain, 1000):
+                return False, "crawl budget exceeded"
+
+        # 2. robots.txt
+        if not self.check_robots(url):
+            return False, "robots.txt denied"
+
+        return True, "allowed"
 
     def check_robots(self, url: str, user_agent: str = "*") -> bool:
         parsed = urlparse(url)
@@ -51,11 +145,9 @@ class PolicyEngine:
             parser.read()
             return parser.can_fetch(user_agent, url)
         except Exception as exc:
-            logger.warning("robots.check_failed", url=url, robots_url=robots_url, error=str(exc), security_event=True)
-            allowed_by_robots = settings.robots_error_mode == "allow"
-            if allowed_by_robots:
-                logger.warning("robots.fail_open", url=url, mode="allow", security_event=True)
-            return allowed_by_robots
+            logger.warning("robots.check_failed", url=url, error=str(exc),
+                           security_event=True)
+            return settings.robots_error_mode == "allow"
 
     def check_budget(self, url: str, limit: int = 1000) -> bool:
         parsed = urlparse(url)
