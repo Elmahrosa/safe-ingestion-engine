@@ -15,6 +15,8 @@ h1{font-size:42px;font-weight:800;color:#fff;margin-bottom:12px;letter-spacing:-
 .score-num{font-size:52px;font-weight:800;color:#4ade80;line-height:1;flex-shrink:0}
 .score-text{font-size:13px;color:#6b7280;line-height:1.8}
 .score-text strong{color:#d1d5db;display:block;font-size:15px;margin-bottom:4px}
+.proof{background:#0d1f0d;border:1px solid #166534;border-radius:8px;padding:12px 16px;margin-bottom:24px;font-size:13px;color:#4ade80;display:flex;gap:16px;flex-wrap:wrap}
+.proof span{display:flex;align-items:center;gap:6px}
 .box{background:#111;border:1px solid #1f2937;border-radius:12px;padding:22px 24px;margin-bottom:20px}
 .box h2{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px}
 .feat{display:flex;gap:10px;margin-bottom:10px;font-size:14px;color:#d1d5db;line-height:1.5}
@@ -35,40 +37,101 @@ code{background:#1a1a1a;color:#a5b4fc;padding:2px 8px;border-radius:4px;font-siz
 <body>
 <div class="wrap">
 
-<div class="badge">🟢 Available — Repo + Codebase For Sale or License</div>
+<div class="badge">🟢 v3.0.1 — Available for Acquisition or License</div>
 <h1>Safe Ingestion Engine</h1>
 <p class="sub">Compliance-first web data ingestion infrastructure for AI agents and enterprise pipelines.<br>Governance enforced at the pipeline layer — not bolted on after.</p>
 
+<div class="proof">
+  <span>✅ 29/29 tests passing</span>
+  <span>✅ 5/5 modules compile clean</span>
+  <span>✅ 3 security audits</span>
+  <span>✅ 30 issues patched</span>
+  <span>✅ v3.0.1 tagged</span>
+</div>
+
 <div class="score-box">
-  <div class="score-num">7.2</div>
+  <div class="score-num">8.5</div>
   <div class="score-text">
     <strong>Engineering Maturity Score / 10</strong>
-    3 independent security audits · 30 issues identified and patched<br>
-    Architecture 8/10 · Security 8/10 · Production Readiness 7/10
+    v3.0.1 · 29 tests passing · YAML policy · content hash · domain isolation<br>
+    Architecture 9/10 · Security 9/10 · Production Readiness 8/10
   </div>
 </div>
 
 <div class="box">
   <h2>Core Guarantees</h2>
-  <div class="feat"><span class="ok">✓</span>PII auto-redacted — email, phone, SSN, IPv4, credit card, names via Presidio NLP</div>
+  <div class="feat"><span class="ok">✓</span>PII auto-redacted — email, phone, SSN, IPv4, credit card via regex + Presidio NLP</div>
   <div class="feat"><span class="ok">✓</span>SSRF impossible — async DNS + connect-time revalidation + redirect filter</div>
-  <div class="feat"><span class="ok">✓</span>robots.txt structural enforcement — policy engine before every fetch, never advisory</div>
-  <div class="feat"><span class="ok">✓</span>YAML per-domain rules — allow/deny, path blocking, crawl budgets</div>
-  <div class="feat"><span class="ok">✓</span>Content hash — sha256(content) stored per job for deduplication</div>
+  <div class="feat"><span class="ok">✓</span>robots.txt structural enforcement — PolicyEngine before every fetch, never advisory</div>
+  <div class="feat"><span class="ok">✓</span>YAML per-domain rules — allow/deny, path blocking, crawl budgets, delay controls</div>
+  <div class="feat"><span class="ok">✓</span>Domain concurrency isolation — max 2 jobs/domain, prevents accidental DDoS</div>
+  <div class="feat"><span class="ok">✓</span>Content hash — sha256(content) per job for deduplication + change detection</div>
+  <div class="feat"><span class="ok">✓</span>JobStatus state machine — PENDING→RUNNING→RETRYING→COMPLETED/BLOCKED/FAILED</div>
+  <div class="feat"><span class="ok">✓</span>Tenant isolation — tenant_id on every job for multi-tenant deployments</div>
   <div class="feat"><span class="ok">✓</span>x402 USDC payments on Base — agent-native, no signup required</div>
-  <div class="feat"><span class="ok">✓</span>MCP server — works natively with Claude, Cursor, Windsurf</div>
-  <div class="feat"><span class="ok">✓</span>Immutable audit log — tamper-evident, PDF exportable</div>
+  <div class="feat"><span class="ok">✓</span>MCP server — Claude, Cursor, Windsurf native (mcp_server.py included)</div>
+  <div class="feat"><span class="ok">✓</span>Streamlit dashboard — audit log, metrics, domain stats, CSV export</div>
   <div class="feat"><span class="ok">✓</span>Atomic credit deduction — Redis WATCH/MULTI/EXEC, TOCTOU eliminated</div>
   <div class="feat"><span class="ok">✓</span>API key never in Celery queue — isolated from Redis task payload</div>
+  <div class="feat"><span class="ok">✓</span>Per-API-key rate limiting — not IP-based, configurable per plan</div>
   <div class="feat"><span class="ok">✓</span>Next.js dashboard — Ingest, Jobs, Audit, Metrics UI included</div>
-  <div class="feat"><span class="ok">✓</span>Full test suite + 3 security audit docs included</div>
 </div>
 
 <div class="box">
-  <h2>Tech Stack</h2>
-  <div class="feat"><span class="ok">→</span>FastAPI + Celery (gevent) + Redis — production-hardened async pipeline</div>
-  <div class="feat"><span class="ok">→</span>Docker + docker-compose — one command deploy</div>
-  <div class="feat"><span class="ok">→</span>SQLite (dev) → PostgreSQL (production)</div>
-  <div class="feat"><span class="ok">→</span>Prometheus metrics — Grafana ready</div>
-  <div class="feat"><span class="ok">→</span>structlog JSON logging — ELK / Loki ready</div>
-  <div class="feat">
+  <h2>What You Get</h2>
+  <div class="feat"><span class="ok">→</span>Full source — FastAPI + Celery + Redis + SQLAlchemy + Docker</div>
+  <div class="feat"><span class="ok">→</span>29 passing tests — state machine, PII, SSRF, auth, content hash</div>
+  <div class="feat"><span class="ok">→</span>3 security audit docs — 30 issues identified and patched</div>
+  <div class="feat"><span class="ok">→</span>YAML policy engine — per-domain rules wired into pipeline</div>
+  <div class="feat"><span class="ok">→</span>Streamlit dashboard — audit, metrics, domains, CSV export</div>
+  <div class="feat"><span class="ok">→</span>MCP server — Claude/Cursor/Windsurf native integration</div>
+  <div class="feat"><span class="ok">→</span>Next.js frontend dashboard — 4 pages, production-ready UI</div>
+  <div class="feat"><span class="ok">→</span>x402 + GAS billing bridge — Google Apps Script → Redis → API</div>
+  <div class="feat"><span class="ok">→</span>docs/ — AI agent integration, x402 guide, penetration test checklist</div>
+</div>
+
+<div class="box">
+  <h2>API Endpoints</h2>
+  <div class="feat"><span class="ok">→</span><code>POST /v1/ingest_async</code> — submit URL, get job_id</div>
+  <div class="feat"><span class="ok">→</span><code>GET /v1/jobs/{id}</code> — poll status + result + content_hash</div>
+  <div class="feat"><span class="ok">→</span><code>GET /v1/jobs</code> — list with status filter + pagination</div>
+  <div class="feat"><span class="ok">→</span><code>GET /v1/audit</code> — full paginated audit log</div>
+  <div class="feat"><span class="ok">→</span><code>GET /v1/domains</code> — per-domain crawl stats</div>
+  <div class="feat"><span class="ok">→</span><code>GET /v1/account</code> — credits, plan, key info</div>
+  <div class="feat"><span class="ok">→</span><code>GET /health</code> · <code>GET /metrics</code> — liveness + Prometheus</div>
+</div>
+
+<div class="box">
+  <h2>Licensing Options</h2>
+  <div class="row"><span class="k">Full acquisition (code + docs + all assets)</span><span class="v">$5,500</span></div>
+  <div class="row"><span class="k">Production deployment license</span><span class="v">$2,000</span></div>
+  <div class="row"><span class="k">White-label + deploy for you</span><span class="v">$2,500</span></div>
+  <div class="row"><span class="k">API access — hosted, pay per URL</span><span class="v">From $1 USDC</span></div>
+  <div class="row"><span class="k">Local eval ≤ 30 days / research ≤ 500 req</span><span class="v">Free</span></div>
+</div>
+
+<div class="box">
+  <h2>Hosted API Pricing</h2>
+  <div class="row"><span class="k">Free Trial</span><span class="v">5 URLs · $0</span></div>
+  <div class="row"><span class="k">Pay As You Go</span><span class="v">4 URLs / $1 USDC</span></div>
+  <div class="row"><span class="k">Monthly Starter</span><span class="v">300 URLs · $29/mo</span></div>
+  <div class="row"><span class="k">Monthly Growth</span><span class="v">900 URLs · $79/mo</span></div>
+  <div class="row"><span class="k">Yearly Growth</span><span class="v">9,000 URLs · $790/yr</span></div>
+</div>
+
+<div class="cta">
+  <a class="btn g" href="mailto:ayman@teosegypt.com?subject=Safe Ingestion Engine — Licensing Inquiry">📩 License or Acquire — ayman@teosegypt.com</a>
+  <a class="btn p" href="https://github.com/Elmahrosa/safe-ingestion-engine" target="_blank">⭐ Full Codebase + Audit Docs + 29 Tests on GitHub</a>
+  <a class="btn d" href="mailto:ayman@teosegypt.com?subject=Safe Ingestion Engine — API Access">💳 Get API Access — USDC or PayPal</a>
+</div>
+
+<div class="foot">
+  v3.0.1 · 29/29 tests passing · 5/5 modules compile clean<br>
+  Payment: USDC on Base · PayPal: elma7rosa@gmx.com<br>
+  Built by Elmahrosa International — Cairo, Egypt<br>
+  <a href="https://github.com/Elmahrosa/safe-ingestion-engine" style="color:#374151">github.com/Elmahrosa/safe-ingestion-engine</a>
+</div>
+
+</div>
+</body>
+</html>
