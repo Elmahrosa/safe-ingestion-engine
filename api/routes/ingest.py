@@ -75,7 +75,7 @@ async def enqueue_ingest(
                 REQUEST_COUNT.labels(status="no_credits").inc()
                 raise HTTPException(
                     status_code=402,
-                    detail="insufficient credits — top up before submitting another job",
+                    detail="insufficient credits",
                 )
 
             job_id = str(uuid.uuid4())
@@ -94,7 +94,9 @@ async def enqueue_ingest(
             ingest_url_task.delay(job_id=job_id)
 
             if payload.idempotency_key:
-                redis_client.setex(f"idempotent:{payload.idempotency_key}", 86400, job_id)
+                redis_client.setex(
+                    f"idempotent:{payload.idempotency_key}", 86400, job_id
+                )
 
             REQUEST_COUNT.labels(status="queued").inc()
             return {"job_id": job_id, "status": JobStatus.PENDING.value}
@@ -103,7 +105,9 @@ async def enqueue_ingest(
             raise
         except Exception as exc:
             REQUEST_COUNT.labels(status="error").inc()
-            raise HTTPException(status_code=500, detail=f"failed to enqueue job: {exc}") from exc
+            raise HTTPException(
+                status_code=500, detail=f"failed to enqueue job: {exc}"
+            ) from exc
 
 
 @router.get("/v1/jobs/{job_id}")
@@ -111,7 +115,10 @@ async def get_job(job_id: str, api_key: str = Depends(require_api_key)):
     key_hash = hash_api_key(api_key)
     with session_scope() as session:
         job = session.scalar(
-            select(Job).where(Job.job_id == job_id, Job.api_key_hash == key_hash)
+            select(Job).where(
+                Job.job_id == job_id,
+                Job.api_key_hash == key_hash,
+            )
         )
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
@@ -128,7 +135,9 @@ async def get_job(job_id: str, api_key: str = Depends(require_api_key)):
             "error_message": job.error_message,
             "created_at": job.created_at.isoformat(),
             "updated_at": job.updated_at.isoformat(),
-            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "completed_at": (
+                job.completed_at.isoformat() if job.completed_at else None
+            ),
         }
 
 
@@ -146,8 +155,14 @@ async def list_jobs(
             try:
                 q = q.where(Job.status == JobStatus(status.upper()))
             except ValueError:
-                raise HTTPException(status_code=400, detail=f"invalid status: {status}")
-        q = q.order_by(Job.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+                raise HTTPException(
+                    status_code=400, detail=f"invalid status: {status}"
+                )
+        q = (
+            q.order_by(Job.created_at.desc())
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+        )
         jobs = session.scalars(q).all()
         return {
             "page": page,
@@ -198,7 +213,9 @@ async def get_audit(
                     "error_message": j.error_message,
                     "attempt_count": j.attempt_count,
                     "created_at": j.created_at.isoformat(),
-                    "completed_at": j.completed_at.isoformat() if j.completed_at else None,
+                    "completed_at": (
+                        j.completed_at.isoformat() if j.completed_at else None
+                    ),
                 }
                 for j in jobs
             ],
@@ -216,3 +233,61 @@ async def get_domains(api_key: str = Depends(require_api_key)):
         for j in jobs:
             d = j.domain or "unknown"
             if d not in domain_stats:
+                domain_stats[d] = {
+                    "domain": d,
+                    "total": 0,
+                    "completed": 0,
+                    "blocked": 0,
+                    "failed": 0,
+                    "last_crawled": None,
+                }
+            domain_stats[d]["total"] += 1
+            if j.status == JobStatus.COMPLETED:
+                domain_stats[d]["completed"] += 1
+            elif j.status == JobStatus.BLOCKED:
+                domain_stats[d]["blocked"] += 1
+            elif j.status == JobStatus.FAILED:
+                domain_stats[d]["failed"] += 1
+            ts = j.updated_at.isoformat()
+            if (
+                not domain_stats[d]["last_crawled"]
+                or ts > domain_stats[d]["last_crawled"]
+            ):
+                domain_stats[d]["last_crawled"] = ts
+        return {"domains": list(domain_stats.values())}
+
+
+@router.get("/v1/account")
+async def get_account(api_key: str = Depends(require_api_key)):
+    info = get_key_info(api_key)
+    if not info["valid"]:
+        raise HTTPException(status_code=401, detail="invalid api key")
+    return info
+
+
+@router.post("/internal/register-key")
+async def register_key(request: Request, payload: RegisterKeyPayload):
+    incoming_secret = request.headers.get("x-webhook-secret", "")
+    if not settings.gas_webhook_secret:
+        raise HTTPException(
+            status_code=500, detail="webhook secret not configured"
+        )
+    if not secrets.compare_digest(incoming_secret, settings.gas_webhook_secret):
+        raise HTTPException(status_code=403, detail="forbidden")
+    plan = payload.plan.lower()
+    if plan not in PLAN_CREDITS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown plan. valid: {sorted(PLAN_CREDITS)}",
+        )
+    credits = (
+        payload.credits if payload.credits is not None else PLAN_CREDITS[plan]
+    )
+    key_hash = register_api_key(payload.api_key, credits=credits, plan=plan)
+    return {
+        "registered": True,
+        "hash_preview": key_hash[:12],
+        "plan": plan,
+        "credits": credits,
+        "tx_hash": payload.tx_hash,
+    }
