@@ -9,6 +9,19 @@ from core.config import get_settings
 
 _redis_client: redis_lib.Redis | None = None
 
+# TTL in seconds per plan — trial expires in 7 days, paid plans in 32 days
+PLAN_TTL: dict[str, int] = {
+    "trial":      60 * 60 * 24 * 7,   # 7 days
+    "starter":    60 * 60 * 24 * 32,  # 32 days
+    "growth":     60 * 60 * 24 * 32,
+    "enterprise": 60 * 60 * 24 * 32,
+}
+
+# Separate Redis keys per user so TTL works per-key, not per bucket
+# Key pattern: "key:<hash>"  → credits (string)
+# Meta pattern: "meta:<hash>" → plan (string)
+# TTL is set on both keys simultaneously
+
 
 def _get_redis() -> redis_lib.Redis:
     global _redis_client
@@ -25,43 +38,92 @@ def hash_api_key(api_key: str, salt: str | None = None) -> str:
     return hmac.new(secret, api_key.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
-def register_api_key(api_key: str, credits: int = 100, plan: str = "starter") -> str:
-    """Store a newly issued API key in Redis and return its hash preview-safe value."""
+def _credit_key(key_hash: str) -> str:
+    return f"key:{key_hash}"
+
+
+def _meta_key(key_hash: str) -> str:
+    return f"meta:{key_hash}"
+
+
+def register_api_key(
+    api_key: str,
+    credits: int = 100,
+    plan: str = "starter",
+    ttl_seconds: int | None = None,
+) -> str:
+    """
+    Store API key in Redis with optional TTL.
+    Trial keys auto-expire after 7 days.
+    Returns the HMAC hash (safe to log/display).
+    """
     key_hash = hash_api_key(api_key)
     r = _get_redis()
-    r.hset("api_keys", key_hash, credits)
-    r.hset("api_meta", key_hash, plan)
+    ttl = ttl_seconds if ttl_seconds is not None else PLAN_TTL.get(plan)
+
+    pipe = r.pipeline()
+    pipe.set(_credit_key(key_hash), credits)
+    pipe.set(_meta_key(key_hash), plan)
+    if ttl:
+        pipe.expire(_credit_key(key_hash), ttl)
+        pipe.expire(_meta_key(key_hash), ttl)
+    pipe.execute()
+
     return key_hash
+
+
+def expire_api_key(api_key: str) -> None:
+    """
+    Zero credits and remove TTL immediately.
+    Called by GAS expireTrials() or manual revocation.
+    """
+    key_hash = hash_api_key(api_key)
+    r = _get_redis()
+    pipe = r.pipeline()
+    pipe.set(_credit_key(key_hash), 0)
+    pipe.expire(_credit_key(key_hash), 1)   # expire in 1 second
+    pipe.expire(_meta_key(key_hash), 1)
+    pipe.execute()
+
+
+def revoke_api_key(api_key: str) -> None:
+    """Hard delete — key immediately invalid."""
+    key_hash = hash_api_key(api_key)
+    r = _get_redis()
+    r.delete(_credit_key(key_hash), _meta_key(key_hash))
 
 
 def is_valid_api_key(api_key: str) -> bool:
     key_hash = hash_api_key(api_key)
-    return _get_redis().hexists("api_keys", key_hash)
+    return _get_redis().exists(_credit_key(key_hash)) == 1
 
 
 def get_credits(api_key: str) -> int:
     key_hash = hash_api_key(api_key)
-    value = _get_redis().hget("api_keys", key_hash)
+    value = _get_redis().get(_credit_key(key_hash))
     return int(value) if value is not None else 0
 
 
 def deduct_credit(api_key: str) -> bool:
-    """Atomically deduct one credit. Returns False when no credits remain."""
+    """
+    Atomically deduct one credit using WATCH/MULTI/EXEC.
+    Returns False when no credits remain or key is expired/invalid.
+    """
     key_hash = hash_api_key(api_key)
     redis_client = _get_redis()
-    bucket = "api_keys"
+    ckey = _credit_key(key_hash)
 
     with redis_client.pipeline() as pipe:
         while True:
             try:
-                pipe.watch(bucket)
-                current = redis_client.hget(bucket, key_hash)
+                pipe.watch(ckey)
+                current = redis_client.get(ckey)
                 credits = int(current) if current is not None else 0
                 if credits <= 0:
                     pipe.unwatch()
                     return False
                 pipe.multi()
-                pipe.hincrby(bucket, key_hash, -1)
+                pipe.decr(ckey)
                 pipe.execute()
                 return True
             except redis_lib.WatchError:
@@ -70,17 +132,23 @@ def deduct_credit(api_key: str) -> bool:
 
 def add_credits(api_key: str, amount: int) -> int:
     key_hash = hash_api_key(api_key)
-    return int(_get_redis().hincrby("api_keys", key_hash, amount))
+    return int(_get_redis().incrby(_credit_key(key_hash), amount))
 
 
 def get_key_info(api_key: str) -> dict:
     key_hash = hash_api_key(api_key)
-    redis_client = _get_redis()
-    credits = redis_client.hget("api_keys", key_hash)
-    plan = redis_client.hget("api_meta", key_hash)
+    r = _get_redis()
+    ckey = _credit_key(key_hash)
+    mkey = _meta_key(key_hash)
+
+    credits = r.get(ckey)
+    plan = r.get(mkey)
+    ttl = r.ttl(ckey)   # -1 = no expiry, -2 = key gone, ≥0 = seconds remaining
+
     return {
         "valid": credits is not None,
         "credits": int(credits) if credits is not None else 0,
         "plan": plan or "unknown",
         "hash_preview": key_hash[:12],
+        "expires_in_seconds": ttl if ttl >= 0 else None,
     }
