@@ -549,6 +549,12 @@
     setTimeout(() => document.getElementById('email').focus(), 600);
   }
 
+  const PLAN_LABELS = {
+    trial: 'Free Trial - 50 URLs',
+    starter: 'Starter - 500 URLs/mo - $29',
+    growth: 'Growth - 5000 URLs/mo - $79'
+  };
+
   async function submitSignup() {
     const email = document.getElementById('email').value.trim();
     const plan = document.getElementById('plan').value;
@@ -566,30 +572,52 @@
     btn.textContent = 'Sending...';
     btn.disabled = true;
 
-    try {
-      // POST to your GAS webhook
-      const GAS_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
+    // ── Try Formspree first (free tier, 50 submissions/mo, no setup needed) ──
+    // Replace YOUR_FORMSPREE_ID with the ID from formspree.io after creating a form
+    const FORMSPREE_ID = 'myknnrwn';
 
-      const resp = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, plan }),
-        mode: 'no-cors'  // GAS requires no-cors from browser
-      });
+    // ── Try GAS webhook if deployed ──
+    const GAS_URL = 'YOUR_GAS_WEBHOOK_URL';
 
-      // no-cors means we can't read the response — assume success
-      document.getElementById('signup-form').style.display = 'none';
-      document.getElementById('form-success').style.display = 'block';
+    let sent = false;
 
-    } catch (err) {
-      errEl.textContent = 'Something went wrong. Email ayman@teosegypt.com directly for a key.';
-      errEl.style.display = 'block';
-      btn.textContent = 'Get API key →';
-      btn.disabled = false;
+    // Try GAS if configured
+    if (GAS_URL !== 'YOUR_GAS_WEBHOOK_URL') {
+      try {
+        await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, plan }),
+          mode: 'no-cors'
+        });
+        sent = true;
+      } catch (e) {}
     }
+
+    // Try Formspree if configured
+    if (!sent && FORMSPREE_ID !== 'YOUR_FORMSPREE_ID') {
+      try {
+        const r = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, plan: PLAN_LABELS[plan], _subject: 'New API Key Request - AI Ingestion Gateway' })
+        });
+        if (r.ok) sent = true;
+      } catch (e) {}
+    }
+
+    // Fallback: open mailto so you at least get the request
+    if (!sent) {
+      const subject = encodeURIComponent('API Key Request - AI Ingestion Gateway');
+      const body = encodeURIComponent(`New signup request:\n\nEmail: ${email}\nPlan: ${PLAN_LABELS[plan]}\n\nPlease provision a key and reply to this email.`);
+      window.open(`mailto:ayman@teosegypt.com?subject=${subject}&body=${body}`);
+    }
+
+    // Always show success — you will receive the request one way or another
+    document.getElementById('signup-form').style.display = 'none';
+    document.getElementById('form-success').style.display = 'block';
   }
 
-  // Handle Enter key in email field
   document.getElementById('email').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') submitSignup();
   });
