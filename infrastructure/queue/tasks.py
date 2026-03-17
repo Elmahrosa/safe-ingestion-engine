@@ -54,7 +54,7 @@ def ingest_url_task(self, job_id: str):
         domain = job.domain or ""
 
     try:
-        # Policy check
+        # Policy check (enforces robots + budgets + YAML + concurrency)
         allowed, reason = policy_engine.evaluate(url)
         if not allowed:
             with session_scope() as session:
@@ -63,14 +63,13 @@ def ingest_url_task(self, job_id: str):
                     db_job.status = transition(db_job.status, JobStatus.BLOCKED)
                     db_job.error_message = reason
                     db_job.security_event = True
-            log.warning("job blocked", extra={"job_id": job_id, "reason": reason})
+            log.warning("job blocked", extra={"job_id": job_id, "domain": domain, "reason": reason})
             return {"job_id": job_id, "status": "BLOCKED", "reason": reason}
 
-        # Fetch
+        # Fetch + scrub
         result = asyncio.run(connector.fetch(url))
         raw_content = result.content
 
-        # PII scrub
         pii_result = scrub_text(raw_content)
         clean_content = pii_result.text
         pii_count = pii_result.count
@@ -78,7 +77,7 @@ def ingest_url_task(self, job_id: str):
         # Content hash
         content_hash = _hash_content(clean_content)
 
-        # Release domain concurrency slot
+        # Release domain concurrency slot after successful scrape
         policy_engine.concurrency.release(domain)
 
         with session_scope() as session:
@@ -92,16 +91,30 @@ def ingest_url_task(self, job_id: str):
             from datetime import datetime, timezone
             db_job.completed_at = datetime.now(timezone.utc)
 
-        log.info("job completed", extra={
-            "job_id": job_id, "url": url,
-            "pii_count": pii_count, "content_hash": content_hash[:12]
-        })
-        return {"job_id": job_id, "status": "COMPLETED",
-                "content_hash": content_hash, "pii_found": pii_count}
+        # Remove URL from structured logs
+        log.info(
+            "job completed",
+            extra={
+                "job_id": job_id,
+                "domain": domain,
+                "pii_count": pii_count,
+                "content_hash": content_hash[:12],
+            },
+        )
+        return {"job_id": job_id, "status": "COMPLETED", "content_hash": content_hash, "pii_found": pii_count}
 
     except Exception as exc:
-        policy_engine.concurrency.release(domain)
+        # Best-effort release
+        try:
+            policy_engine.concurrency.release(domain)
+        except Exception:
+            pass
+
         is_retry = self.request.retries < self.max_retries
+
+        # Safe error classification (avoid leaking internal exception text / URL details)
+        safe_type = type(exc).__name__
+        safe_reason = f"{safe_type}: ingestion failed"
 
         with session_scope() as session:
             db_job = session.scalar(select(Job).where(Job.job_id == job_id))
@@ -111,8 +124,9 @@ def ingest_url_task(self, job_id: str):
                     db_job.status = transition(db_job.status, next_status)
                 except ValueError:
                     db_job.status = JobStatus.FAILED
-                db_job.error_message = str(exc)
+                db_job.error_message = safe_reason
                 db_job.security_event = True
 
-        log.exception("job failed", extra={"job_id": job_id, "url": url})
+        # log.exception keeps traceback locally, but structured extra has no URL
+        log.exception("job failed", extra={"job_id": job_id, "domain": domain})
         raise
