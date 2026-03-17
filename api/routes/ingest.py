@@ -101,8 +101,11 @@ async def enqueue_ingest(
 ):
     with REQUEST_DURATION.time():
         try:
+            key_hash = hash_api_key(api_key)
+
             if payload.idempotency_key:
-                cache_key = f"idempotent:{payload.idempotency_key}"
+                # Bind idempotency to caller to prevent cross-API-key collisions.
+                cache_key = f"idempotent:{key_hash}:{payload.idempotency_key}"
                 existing = redis_client.get(cache_key)
                 if existing:
                     REQUEST_COUNT.labels(status="duplicate").inc()
@@ -114,21 +117,24 @@ async def enqueue_ingest(
 
             job_id = str(uuid.uuid4())
             domain = _extract_domain(str(payload.url))
+            tenant_id = payload.tenant_id
 
             with session_scope() as session:
-                session.add(Job(
-                    job_id=job_id,
-                    source_url=str(payload.url),
-                    domain=domain,
-                    tenant_id=payload.tenant_id,
-                    status=JobStatus.PENDING,
-                    api_key_hash=hash_api_key(api_key),
-                ))
+                session.add(
+                    Job(
+                        job_id=job_id,
+                        source_url=str(payload.url),
+                        domain=domain,
+                        tenant_id=tenant_id,
+                        status=JobStatus.PENDING,
+                        api_key_hash=key_hash,
+                    )
+                )
 
             ingest_url_task.delay(job_id=job_id)
 
             if payload.idempotency_key:
-                redis_client.setex(f"idempotent:{payload.idempotency_key}", 86400, job_id)
+                redis_client.setex(f"idempotent:{key_hash}:{payload.idempotency_key}", 86400, job_id)
 
             REQUEST_COUNT.labels(status="queued").inc()
             return {"job_id": job_id, "status": JobStatus.PENDING.value}
@@ -140,49 +146,74 @@ async def enqueue_ingest(
             raise HTTPException(status_code=500, detail=f"failed to enqueue job: {exc}") from exc
 
 
+def _job_to_response(job: Job, *, include_source_url: bool, include_error: bool) -> dict:
+    base = {
+        "job_id": job.job_id,
+        "status": job.status.value,
+        "domain": job.domain,
+        "tenant_id": job.tenant_id,  # keep field; enforced at query time when tenant_id param is provided
+        # Note: optionally hide source_url/error at response level (see endpoint usage).
+        "pii_found": job.pii_found,
+        "content_hash": job.content_hash,
+        "attempt_count": job.attempt_count,
+        "created_at": job.created_at.isoformat(),
+        "updated_at": job.updated_at.isoformat(),
+        "completed_at": (job.completed_at.isoformat() if job.completed_at else None),
+    }
+    if include_source_url:
+        base["source_url"] = job.source_url
+    if include_error and job.error_message:
+        base["error_message"] = job.error_message
+    if job.result_excerpt:
+        base["result_excerpt"] = job.result_excerpt
+    return base
+
+
 @router.get("/v1/jobs/{job_id}")
-async def get_job(job_id: str, api_key: str = Depends(require_api_key)):
+async def get_job(
+    job_id: str,
+    api_key: str = Depends(require_api_key),
+    tenant_id: str | None = Query(None),
+):
     key_hash = hash_api_key(api_key)
     with session_scope() as session:
-        job = session.scalar(
-            select(Job).where(Job.job_id == job_id, Job.api_key_hash == key_hash)
-        )
+        q = select(Job).where(Job.job_id == job_id, Job.api_key_hash == key_hash)
+        if tenant_id is not None:
+            q = q.where(Job.tenant_id == tenant_id)
+
+        job = session.scalar(q)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
-        return {
-            "job_id": job.job_id,
-            "status": job.status.value,
-            "domain": job.domain,
-            "tenant_id": job.tenant_id,
-            "source_url": job.source_url,
-            "pii_found": job.pii_found,
-            "content_hash": job.content_hash,
-            "attempt_count": job.attempt_count,
-            "result_excerpt": job.result_excerpt,
-            "error_message": job.error_message,
-            "created_at": job.created_at.isoformat(),
-            "updated_at": job.updated_at.isoformat(),
-            "completed_at": (job.completed_at.isoformat() if job.completed_at else None),
-        }
+
+        # Reduce exposure: don't return source_url by default, and only return error_message if present.
+        include_source_url = False
+        include_error = True
+        return _job_to_response(job, include_source_url=include_source_url, include_error=include_error)
 
 
 @router.get("/v1/jobs")
 async def list_jobs(
     api_key: str = Depends(require_api_key),
     status: str | None = Query(None),
+    tenant_id: str | None = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
     key_hash = hash_api_key(api_key)
     with session_scope() as session:
         q = select(Job).where(Job.api_key_hash == key_hash)
+        if tenant_id is not None:
+            q = q.where(Job.tenant_id == tenant_id)
+
         if status:
             try:
                 q = q.where(Job.status == JobStatus(status.upper()))
             except ValueError:
                 raise HTTPException(status_code=400, detail=f"invalid status: {status}")
+
         q = q.order_by(Job.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
         jobs = session.scalars(q).all()
+
         return {
             "page": page,
             "per_page": per_page,
@@ -191,7 +222,9 @@ async def list_jobs(
                     "job_id": j.job_id,
                     "status": j.status.value,
                     "domain": j.domain,
-                    "source_url": j.source_url,
+                    # Do not leak source_url in list
+                    # "source_url": j.source_url,
+                    "tenant_id": j.tenant_id,
                     "pii_found": j.pii_found,
                     "content_hash": j.content_hash,
                     "created_at": j.created_at.isoformat(),
@@ -204,19 +237,24 @@ async def list_jobs(
 @router.get("/v1/audit")
 async def get_audit(
     api_key: str = Depends(require_api_key),
+    tenant_id: str | None = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
 ):
     key_hash = hash_api_key(api_key)
     with session_scope() as session:
+        q = select(Job).where(Job.api_key_hash == key_hash)
+        if tenant_id is not None:
+            q = q.where(Job.tenant_id == tenant_id)
+
         q = (
-            select(Job)
-            .where(Job.api_key_hash == key_hash)
-            .order_by(Job.created_at.desc())
+            q.order_by(Job.created_at.desc())
             .offset((page - 1) * per_page)
             .limit(per_page)
         )
         jobs = session.scalars(q).all()
+
+        # Reduce exposure: don't return full source_url in audit; keep domain + hashes + error category.
         return {
             "page": page,
             "per_page": per_page,
@@ -225,7 +263,6 @@ async def get_audit(
                     "job_id": j.job_id,
                     "status": j.status.value,
                     "domain": j.domain,
-                    "source_url": j.source_url,
                     "pii_found": j.pii_found,
                     "content_hash": j.content_hash,
                     "security_event": j.security_event,
@@ -233,6 +270,8 @@ async def get_audit(
                     "attempt_count": j.attempt_count,
                     "created_at": j.created_at.isoformat(),
                     "completed_at": (j.completed_at.isoformat() if j.completed_at else None),
+                    # "source_url": j.source_url,  # removed
+                    "tenant_id": j.tenant_id,
                 }
                 for j in jobs
             ],
@@ -240,15 +279,30 @@ async def get_audit(
 
 
 @router.get("/v1/domains")
-async def get_domains(api_key: str = Depends(require_api_key)):
+async def get_domains(
+    api_key: str = Depends(require_api_key),
+    tenant_id: str | None = Query(None),
+):
     key_hash = hash_api_key(api_key)
     with session_scope() as session:
-        jobs = session.scalars(select(Job).where(Job.api_key_hash == key_hash)).all()
+        jobs_q = select(Job).where(Job.api_key_hash == key_hash)
+        if tenant_id is not None:
+            jobs_q = jobs_q.where(Job.tenant_id == tenant_id)
+
+        jobs = session.scalars(jobs_q).all()
+
         domain_stats: dict[str, dict] = {}
         for j in jobs:
             d = j.domain or "unknown"
             if d not in domain_stats:
-                domain_stats[d] = {"domain": d, "total": 0, "completed": 0, "blocked": 0, "failed": 0, "last_crawled": None}
+                domain_stats[d] = {
+                    "domain": d,
+                    "total": 0,
+                    "completed": 0,
+                    "blocked": 0,
+                    "failed": 0,
+                    "last_crawled": None,
+                }
             domain_stats[d]["total"] += 1
             if j.status == JobStatus.COMPLETED:
                 domain_stats[d]["completed"] += 1
@@ -256,9 +310,11 @@ async def get_domains(api_key: str = Depends(require_api_key)):
                 domain_stats[d]["blocked"] += 1
             elif j.status == JobStatus.FAILED:
                 domain_stats[d]["failed"] += 1
+
             ts = j.updated_at.isoformat()
             if not domain_stats[d]["last_crawled"] or ts > domain_stats[d]["last_crawled"]:
                 domain_stats[d]["last_crawled"] = ts
+
         return {"domains": list(domain_stats.values())}
 
 
@@ -273,6 +329,7 @@ async def get_account(api_key: str = Depends(require_api_key)):
 # ── Internal endpoints — GAS webhook only ────────────────────────────────────
 
 @router.post("/internal/provision")
+@limiter.limit("30/minute")
 async def provision_key(request: Request, payload: ProvisionPayload):
     """
     Called by GAS doPost() after user signs up.
@@ -306,6 +363,7 @@ async def provision_key(request: Request, payload: ProvisionPayload):
 
 
 @router.post("/internal/expire")
+@limiter.limit("30/minute")
 async def expire_key(request: Request, payload: ExpirePayload):
     """
     Called by GAS expireTrials() daily trigger.
@@ -318,6 +376,7 @@ async def expire_key(request: Request, payload: ExpirePayload):
 
 
 @router.post("/internal/revoke")
+@limiter.limit("30/minute")
 async def revoke_key(request: Request, payload: ExpirePayload):
     """
     Hard delete — key immediately invalid.
@@ -329,6 +388,7 @@ async def revoke_key(request: Request, payload: ExpirePayload):
 
 
 @router.post("/internal/register-key")
+@limiter.limit("30/minute")
 async def register_key(request: Request, payload: RegisterKeyPayload):
     """
     Legacy endpoint — kept for backward compat with scripts/gas_billing_bridge.js.
