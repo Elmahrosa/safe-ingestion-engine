@@ -27,9 +27,10 @@ class HTTPConnector(DataConnector):
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
+            # Security: always disable redirects to avoid SSRF bypass via redirect chains.
             self._client = httpx.AsyncClient(
                 timeout=self.timeout,
-                follow_redirects=self.settings.allow_redirects,
+                follow_redirects=False,
                 limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
             )
         return self._client
@@ -72,7 +73,12 @@ class HTTPConnector(DataConnector):
         await self.validate_source(url)
         client = await self._get_client()
 
-        async with client.stream("GET", url, headers={"User-Agent": "safe-ingestion-engine/2.0"}) as response:
+        async with client.stream(
+            "GET",
+            url,
+            headers={"User-Agent": "safe-ingestion-engine/2.0"},
+            follow_redirects=False,
+        ) as response:
             response.raise_for_status()
             chunks: list[bytes] = []
             total_size = 0
@@ -97,7 +103,7 @@ class HTTPConnector(DataConnector):
 
     def get_capabilities(self) -> dict:
         return {
-            "redirects": self.settings.allow_redirects,
+            "redirects": False,
             "streaming_size_guard": True,
             "circuit_breaker": True,
             "async_dns_validation": True,
