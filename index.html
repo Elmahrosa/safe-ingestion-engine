@@ -1,627 +1,602 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Ingestion Gateway — Compliance-First Web Data API for AI Agents</title>
-  <meta name="description" content="Secure web data ingestion API for AI agents and regulated pipelines. PII redaction, SSRF protection, robots.txt enforcement. Start free — 50 URLs, no card required." />
-  <meta name="theme-color" content="#020817" />
-  <meta property="og:title" content="AI Ingestion Gateway" />
-  <meta property="og:description" content="Compliance-first web data API for AI agents. 50 free URLs, no card required." />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://safe.teosegypt.com" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --bg: #020817;
-      --surface: #0a1628;
-      --surface2: #0f1e35;
-      --border: rgba(56,189,248,.12);
-      --border2: rgba(56,189,248,.22);
-      --text: #e2eeff;
-      --muted: #7a9ab8;
-      --faint: #3a5470;
-      --brand: #0ea5e9;
-      --brand2: #0284c7;
-      --green: #22c55e;
-      --green2: #16a34a;
-      --amber: #f59e0b;
-      --max: 1100px;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
-    body {
-      font-family: 'Space Grotesk', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.65;
-      font-size: 16px;
-    }
-    a { color: inherit; text-decoration: none; }
-    .wrap { width: min(var(--max), calc(100% - 2rem)); margin: 0 auto; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Ingestion Gateway — Compliance-First Web Data API</title>
+<meta name="description" content="Compliance-first web data ingestion API for AI agents. PII scrubbing, SSRF protection, robots.txt enforcement. 5 free URLs, 48h trial. Pay with USDC or PayPal."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080b10;--bg2:#0d1117;--bg3:#111720;--card:#131920;
+  --border:#1e2630;--border2:#243040;
+  --text:#d8e0ea;--muted:#8899aa;--muted2:#aabbc8;
+  --green:#0aff6e;--green2:#00c853;
+  --amber:#ffb347;--red:#ff3d5a;--white:#f0f4f8;
+  --font-d:'Syne',sans-serif;--font-m:'DM Mono',monospace;--font-b:'DM Sans',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-b);font-size:16px;line-height:1.6;overflow-x:hidden}
 
-    /* NAV */
-    nav {
-      position: sticky; top: 0; z-index: 50;
-      border-bottom: 1px solid var(--border);
-      background: rgba(2,8,23,.85);
-      backdrop-filter: blur(16px);
-    }
-    .nav-inner {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 1rem 0; gap: 1rem;
-    }
-    .logo {
-      display: flex; align-items: center; gap: .75rem;
-      font-weight: 700; font-size: 1.05rem; letter-spacing: -.01em;
-    }
-    .logo-icon {
-      width: 36px; height: 36px; border-radius: 10px;
-      background: linear-gradient(135deg, #0ea5e9, #0284c7);
-      display: grid; place-items: center; font-size: 18px;
-      box-shadow: 0 0 20px rgba(14,165,233,.3);
-    }
-    .logo span { color: var(--muted); font-size: .75rem; font-weight: 500; display: block; margin-top: -2px; }
-    .nav-links { display: flex; gap: 1.5rem; color: var(--muted); font-size: .9rem; font-weight: 500; }
-    .nav-links a:hover { color: var(--text); }
-    .btn {
-      display: inline-flex; align-items: center; gap: .5rem;
-      padding: .6rem 1.25rem; border-radius: 8px;
-      font-family: inherit; font-size: .875rem; font-weight: 600;
-      cursor: pointer; border: none; transition: .15s ease;
-    }
-    .btn-primary {
-      background: var(--brand); color: #fff;
-      box-shadow: 0 0 24px rgba(14,165,233,.25);
-    }
-    .btn-primary:hover { background: var(--brand2); transform: translateY(-1px); }
-    .btn-outline {
-      background: transparent; color: var(--text);
-      border: 1px solid var(--border2);
-    }
-    .btn-outline:hover { background: var(--surface); }
-    .btn-green {
-      background: var(--green); color: #fff;
-      box-shadow: 0 0 24px rgba(34,197,94,.25);
-      font-size: 1rem; padding: .8rem 1.75rem;
-    }
-    .btn-green:hover { background: var(--green2); transform: translateY(-1px); }
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 40px;height:62px;display:flex;align-items:center;justify-content:space-between;background:rgba(8,11,16,.88);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
+.nav-logo{font-family:var(--font-m);font-size:12px;letter-spacing:2px;color:var(--green);text-transform:uppercase;text-decoration:none}
+.nav-links{display:flex;gap:26px;align-items:center}
+.nav-links a{font-family:var(--font-m);font-size:11px;letter-spacing:2px;color:var(--muted);text-decoration:none;text-transform:uppercase;transition:.2s}
+.nav-links a:hover{color:var(--green)}
+.nav-cta{background:var(--green);color:#000!important;padding:7px 16px;border-radius:6px;font-weight:500;transition:.2s!important}
+.nav-cta:hover{background:#fff!important}
 
-    /* HERO */
-    .hero {
-      padding: 5rem 0 3.5rem;
-      text-align: center;
-      background:
-        radial-gradient(ellipse 80% 40% at 50% -10%, rgba(14,165,233,.12), transparent),
-        radial-gradient(ellipse 60% 30% at 80% 80%, rgba(34,197,94,.06), transparent);
-    }
-    .badge {
-      display: inline-flex; align-items: center; gap: .5rem;
-      padding: .35rem .9rem; border-radius: 999px;
-      border: 1px solid rgba(34,197,94,.3);
-      background: rgba(34,197,94,.08);
-      color: #86efac; font-size: .8rem; font-weight: 600;
-      margin-bottom: 1.5rem;
-    }
-    .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
-    h1 {
-      font-size: clamp(2.2rem, 5vw, 3.6rem);
-      font-weight: 700; line-height: 1.08; letter-spacing: -.03em;
-      max-width: 820px; margin: 0 auto 1.25rem;
-    }
-    h1 em { font-style: normal; color: var(--brand); }
-    .hero-sub {
-      font-size: 1.1rem; color: var(--muted); max-width: 600px;
-      margin: 0 auto 2.5rem; line-height: 1.7;
-    }
-    .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 2rem; }
-    .hero-proof {
-      display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap;
-      color: var(--muted); font-size: .82rem; font-weight: 500;
-    }
-    .proof-item { display: flex; align-items: center; gap: .4rem; }
-    .proof-item::before { content: '✓'; color: var(--green); font-weight: 700; }
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:100px 24px 80px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-20%;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(ellipse at center,rgba(10,255,110,.06) 0%,transparent 70%);pointer-events:none}
+.eyebrow-sm{font-family:var(--font-m);font-size:11px;letter-spacing:4px;color:var(--green);text-transform:uppercase;margin-bottom:22px;opacity:0;animation:fadeUp .8s .1s forwards}
+h1{font-family:var(--font-d);font-size:clamp(40px,7vw,84px);font-weight:800;line-height:1.05;color:var(--white);margin-bottom:14px;opacity:0;animation:fadeUp .8s .2s forwards}
+h1 span{color:var(--green)}
+.hero-sub{font-size:17px;color:var(--muted2);max-width:520px;margin:0 auto 36px;line-height:1.75;opacity:0;animation:fadeUp .8s .35s forwards}
+.hero-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;opacity:0;animation:fadeUp .8s .5s forwards}
+.btn-p{background:var(--green);color:#000;padding:13px 30px;border:none;border-radius:8px;font-family:var(--font-m);font-size:12px;font-weight:500;letter-spacing:1px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:.2s}
+.btn-p:hover{background:#fff;transform:translateY(-1px)}
+.btn-s{background:transparent;color:var(--muted2);padding:13px 30px;border:1px solid var(--border2);border-radius:8px;font-family:var(--font-m);font-size:12px;letter-spacing:1px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:.2s}
+.btn-s:hover{border-color:var(--green);color:var(--green)}
 
-    /* SIGNUP FORM */
-    .signup-section {
-      padding: 3rem 0;
-      background: linear-gradient(180deg, transparent, rgba(14,165,233,.04), transparent);
-    }
-    .signup-card {
-      background: var(--surface);
-      border: 1px solid var(--border2);
-      border-radius: 16px;
-      padding: 2.5rem;
-      max-width: 560px; margin: 0 auto;
-      box-shadow: 0 0 60px rgba(14,165,233,.08);
-    }
-    .signup-card h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: .4rem; }
-    .signup-card p { color: var(--muted); font-size: .9rem; margin-bottom: 1.75rem; }
-    .form-group { margin-bottom: 1rem; }
-    .form-group label { display: block; font-size: .82rem; font-weight: 600; color: var(--muted); margin-bottom: .4rem; letter-spacing: .02em; text-transform: uppercase; }
-    .form-group input, .form-group select {
-      width: 100%; padding: .75rem 1rem;
-      background: var(--bg); border: 1px solid var(--border2);
-      border-radius: 8px; color: var(--text);
-      font-family: inherit; font-size: .95rem;
-      outline: none; transition: border-color .15s;
-    }
-    .form-group input:focus, .form-group select:focus { border-color: var(--brand); }
-    .form-group select option { background: var(--surface2); }
-    .form-submit { width: 100%; margin-top: .5rem; }
-    .form-note { text-align: center; font-size: .78rem; color: var(--faint); margin-top: .75rem; }
-    .form-success {
-      display: none; text-align: center; padding: 1.5rem;
-      color: var(--green); font-weight: 600; font-size: 1rem;
-    }
-    .form-error {
-      display: none; padding: .75rem 1rem; border-radius: 8px;
-      background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.25);
-      color: #fca5a5; font-size: .85rem; margin-top: .75rem;
-    }
+.stats-bar{display:flex;justify-content:center;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--bg2)}
+.stat{flex:1;max-width:200px;padding:22px 16px;text-align:center;border-right:1px solid var(--border)}
+.stat:last-child{border-right:none}
+.stat-v{font-family:var(--font-m);font-size:24px;font-weight:500;color:var(--white);line-height:1}
+.stat-l{font-family:var(--font-m);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-top:5px}
 
-    /* FEATURES */
-    .section { padding: 4rem 0; }
-    .section-label {
-      font-size: .75rem; font-weight: 700; letter-spacing: .1em;
-      text-transform: uppercase; color: var(--brand); margin-bottom: .75rem;
-    }
-    .section-title { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; letter-spacing: -.02em; margin-bottom: .6rem; }
-    .section-sub { color: var(--muted); max-width: 540px; line-height: 1.7; }
-    .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-top: 2.5rem; }
-    .feature-cell { background: var(--surface); padding: 1.75rem; }
-    .feature-cell:hover { background: var(--surface2); }
-    .feature-icon { font-size: 1.5rem; margin-bottom: 1rem; }
-    .feature-cell h3 { font-size: 1rem; font-weight: 600; margin-bottom: .4rem; }
-    .feature-cell p { font-size: .875rem; color: var(--muted); line-height: 1.6; }
+.sec{padding:88px 24px;max-width:1100px;margin:0 auto}
+.sec-full{padding:88px 24px;background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.sec-full .inner{max-width:1100px;margin:0 auto}
+.ey{font-family:var(--font-m);font-size:10px;letter-spacing:4px;color:var(--green);text-transform:uppercase;margin-bottom:12px}
+.st{font-family:var(--font-d);font-size:clamp(26px,4vw,46px);font-weight:700;color:var(--white);margin-bottom:14px;line-height:1.2}
+.sd{font-size:15px;color:var(--muted2);max-width:540px;line-height:1.8;margin-bottom:44px}
 
-    /* HOW IT WORKS */
-    .pipeline {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 2rem;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .82rem;
-      color: var(--muted);
-      line-height: 2;
-      margin-top: 2.5rem;
-      overflow-x: auto;
-    }
-    .pipeline .step { color: var(--text); }
-    .pipeline .arrow { color: var(--faint); }
-    .pipeline .tag-blocked { color: #f87171; }
-    .pipeline .tag-ok { color: var(--green); }
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:1px;background:var(--border);border:1px solid var(--border)}
+.feat{background:var(--card);padding:30px 26px;transition:.2s}
+.feat:hover{background:var(--bg3)}
+.feat-ico{font-size:20px;margin-bottom:14px}
+.feat-t{font-family:var(--font-d);font-size:16px;font-weight:600;color:var(--white);margin-bottom:8px}
+.feat-d{font-size:13px;color:var(--muted2);line-height:1.7}
 
-    /* PRICING */
-    .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 2.5rem; }
-    .price-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px; padding: 1.5rem;
-    }
-    .price-card.featured {
-      border-color: var(--brand);
-      box-shadow: 0 0 40px rgba(14,165,233,.12);
-    }
-    .plan-badge {
-      font-size: .7rem; font-weight: 700; letter-spacing: .08em;
-      text-transform: uppercase; padding: .25rem .6rem;
-      border-radius: 999px; display: inline-block; margin-bottom: .75rem;
-    }
-    .plan-badge.free { background: rgba(34,197,94,.1); color: #86efac; border: 1px solid rgba(34,197,94,.2); }
-    .plan-badge.popular { background: rgba(14,165,233,.1); color: #7dd3fc; border: 1px solid rgba(14,165,233,.2); }
-    .plan-badge.growth { background: rgba(245,158,11,.1); color: #fcd34d; border: 1px solid rgba(245,158,11,.2); }
-    .plan-badge.enterprise { background: rgba(168,85,247,.1); color: #d8b4fe; border: 1px solid rgba(168,85,247,.2); }
-    .price-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: .25rem; }
-    .price-amount { font-size: 2rem; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; margin: .5rem 0; }
-    .price-amount small { font-size: .8rem; color: var(--muted); font-weight: 400; }
-    .price-desc { font-size: .8rem; color: var(--muted); margin-bottom: 1.25rem; }
-    .price-features { list-style: none; display: grid; gap: .5rem; margin-bottom: 1.25rem; }
-    .price-features li { font-size: .82rem; color: var(--muted); padding-left: 1.1rem; position: relative; }
-    .price-features li::before { content: '✓'; position: absolute; left: 0; color: var(--green); font-weight: 700; }
-    .price-features li.highlight { color: var(--text); }
-    .btn-plan {
-      width: 100%; padding: .65rem; border-radius: 8px;
-      font-family: inherit; font-size: .85rem; font-weight: 600;
-      cursor: pointer; border: 1px solid var(--border2);
-      background: transparent; color: var(--text); transition: .15s;
-    }
-    .btn-plan:hover { background: var(--surface2); }
-    .btn-plan.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-    .btn-plan.primary:hover { background: var(--brand2); }
+.code-wrap{background:#060a0f;border:1px solid var(--border2);border-radius:12px;overflow:hidden;margin:24px 0}
+.code-hdr{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:var(--bg2);border-bottom:1px solid var(--border)}
+.dots{display:flex;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%}
+.code-lbl{font-family:var(--font-m);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase}
+.copy-btn{font-family:var(--font-m);font-size:10px;letter-spacing:1px;color:var(--muted);background:none;border:1px solid var(--border);padding:4px 10px;border-radius:4px;cursor:pointer;transition:.15s}
+.copy-btn:hover{color:var(--green);border-color:var(--green)}
+pre{padding:20px 18px;overflow-x:auto;font-family:var(--font-m);font-size:12px;line-height:1.85;color:#8899aa}
+.tg{color:var(--green)}.ta{color:var(--amber)}.tw{color:var(--white)}.tm{color:#445566}
 
-    /* CODE EXAMPLE */
-    .code-block {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      margin-top: 1.5rem;
-    }
-    .code-header {
-      padding: .75rem 1rem;
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; gap: .5rem;
-      font-size: .78rem; color: var(--muted); font-family: 'JetBrains Mono', monospace;
-    }
-    .code-dot { width: 10px; height: 10px; border-radius: 50%; }
-    pre {
-      padding: 1.25rem 1.5rem;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .8rem; line-height: 1.8;
-      color: #a8c4e0; overflow-x: auto;
-    }
-    .c-key { color: #7dd3fc; }
-    .c-str { color: #86efac; }
-    .c-cmt { color: #3a5470; }
-    .c-num { color: #fcd34d; }
+/* PRICING */
+.price-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
+.plan{border:1px solid var(--border);border-radius:14px;padding:26px 22px;background:var(--card);position:relative;transition:.2s}
+.plan:hover{border-color:var(--border2);transform:translateY(-2px)}
+.plan.hot{border-color:var(--green);background:linear-gradient(135deg,var(--card),rgba(10,255,110,.04))}
+.plan-badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--green);color:#000;font-family:var(--font-m);font-size:10px;font-weight:500;letter-spacing:2px;padding:3px 12px;border-radius:99px;text-transform:uppercase;white-space:nowrap}
+.plan-name{font-family:var(--font-m);font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:10px}
+.plan-price{font-family:var(--font-d);font-size:40px;font-weight:700;color:var(--white);line-height:1}
+.plan-price sup{font-size:16px;vertical-align:top;margin-top:7px;color:var(--muted)}
+.plan-per{font-family:var(--font-m);font-size:11px;color:var(--muted);margin:5px 0 18px}
+.plan-feats{list-style:none;margin-bottom:22px}
+.plan-feats li{font-size:13px;color:var(--muted2);padding:5px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.plan-feats li::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0}
+.plan-btn{width:100%;padding:11px;border-radius:8px;font-family:var(--font-m);font-size:11px;letter-spacing:1px;cursor:pointer;transition:.2s;border:none}
+.pb-p{background:var(--green);color:#000;font-weight:500}.pb-p:hover{background:#fff}
+.pb-s{background:transparent;color:var(--muted2);border:1px solid var(--border2)!important}.pb-s:hover{border-color:var(--green)!important;color:var(--green)}
 
-    /* FOOTER */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 2.5rem 0;
-      margin-top: 3rem;
-    }
-    .footer-inner {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 1rem; flex-wrap: wrap;
-    }
-    .footer-links { display: flex; gap: 1.5rem; color: var(--muted); font-size: .85rem; }
-    .footer-links a:hover { color: var(--text); }
+/* SIGNUP */
+.sg-wrap{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:34px 30px;max-width:500px;margin:0 auto}
+.f-lbl{font-family:var(--font-m);font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:7px}
+.f-in{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:11px 14px;color:var(--text);font-family:var(--font-b);font-size:14px;transition:.15s;outline:none;margin-bottom:14px}
+.f-in:focus{border-color:var(--green)}
+.f-in::placeholder{color:var(--muted)}
+.f-sub{width:100%;padding:13px;background:var(--green);border:none;border-radius:8px;font-family:var(--font-m);font-size:12px;font-weight:500;letter-spacing:1px;color:#000;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px}
+.f-sub:hover{background:#fff}
+.f-sub:disabled{opacity:.6;cursor:not-allowed}
+.msg-ok{display:none;margin-top:12px;padding:13px 16px;border-radius:10px;background:rgba(10,255,110,.07);border:1px solid rgba(10,255,110,.22);font-size:13px;color:var(--text);line-height:1.65}
+.msg-err{display:none;margin-top:12px;padding:13px 16px;border-radius:10px;background:rgba(255,61,90,.07);border:1px solid rgba(255,61,90,.2);font-family:var(--font-m);font-size:12px;color:#ff7d91}
 
-    /* RESPONSIVE */
-    @media (max-width: 860px) {
-      .features-grid { grid-template-columns: 1fr 1fr; }
-      .pricing-grid { grid-template-columns: 1fr 1fr; }
-      .nav-links { display: none; }
-    }
-    @media (max-width: 560px) {
-      .features-grid { grid-template-columns: 1fr; }
-      .pricing-grid { grid-template-columns: 1fr; }
-      h1 { font-size: 2rem; }
-      .signup-card { padding: 1.5rem; }
-    }
-  </style>
+/* PAYMENT */
+.wallet-box{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:13px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.w-addr{font-family:var(--font-m);font-size:11px;color:var(--amber);word-break:break-all;flex:1}
+.copy-w{background:var(--border2);border:none;border-radius:6px;padding:6px 12px;color:var(--text);font-family:var(--font-m);font-size:10px;cursor:pointer;white-space:nowrap;transition:.15s}
+.copy-w:hover{background:var(--green);color:#000}
+.warn{display:inline-flex;align-items:center;gap:6px;background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.18);border-radius:6px;padding:6px 10px;font-family:var(--font-m);font-size:11px;color:#ff7d7d}
+.pay-sel{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px}
+.ps{border:1px solid var(--border2);border-radius:8px;padding:9px 5px;cursor:pointer;text-align:center;background:var(--bg);transition:.15s}
+.ps.on{border-color:var(--green);background:rgba(10,255,110,.07)}
+.ps-n{font-family:var(--font-m);font-size:9px;color:var(--muted)}.ps.on .ps-n{color:var(--green)}
+.ps-p{font-size:16px;font-weight:700;color:var(--white)}
+.ps-u{font-size:9px;color:var(--muted)}.ps.on .ps-u{color:var(--green)}
+
+/* PAYPAL SECTION */
+.pp-box{background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:26px;margin-top:28px}
+.pp-title{font-family:var(--font-m);font-size:10px;letter-spacing:3px;color:var(--amber);text-transform:uppercase;margin-bottom:16px}
+.pp-plans{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:18px}
+.pp-plan{border:1px solid var(--border2);border-radius:8px;padding:9px 5px;cursor:pointer;text-align:center;background:var(--bg);transition:.15s}
+.pp-plan.on{border-color:var(--amber);background:rgba(255,179,71,.07)}
+.pp-plan .pn{font-family:var(--font-m);font-size:9px;color:var(--muted)}.pp-plan.on .pn{color:var(--amber)}
+.pp-plan .pp{font-size:16px;font-weight:700;color:var(--white)}
+.pp-plan .pu{font-size:9px;color:var(--muted)}.pp-plan.on .pu{color:var(--amber)}
+.pp-btn{width:100%;padding:12px;background:#0070ba;color:#fff;border:none;border-radius:8px;font-family:var(--font-m);font-size:11px;font-weight:500;letter-spacing:1px;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.pp-btn:hover{background:#005ea6;transform:translateY(-1px)}
+
+.spin{width:13px;height:13px;border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;animation:rot .7s linear infinite;display:none}
+@keyframes rot{to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+
+footer{background:var(--bg2);border-top:1px solid var(--border);padding:44px 40px 30px;text-align:center}
+.f-logo{font-family:var(--font-m);font-size:12px;letter-spacing:3px;color:var(--green);text-transform:uppercase;margin-bottom:14px}
+.f-links{display:flex;justify-content:center;gap:22px;flex-wrap:wrap;margin-bottom:22px}
+.f-links a{font-family:var(--font-m);font-size:11px;letter-spacing:1px;color:var(--muted);text-decoration:none;transition:.15s}
+.f-links a:hover{color:var(--green)}
+.f-copy{font-family:var(--font-m);font-size:10px;color:var(--muted);letter-spacing:1px}
+
+@media(max-width:700px){
+  nav{padding:0 16px}.nav-links a:not(.nav-cta){display:none}
+  .stats-bar{flex-wrap:wrap}.stat{min-width:50%;border-right:none;border-bottom:1px solid var(--border)}
+  .pay-sel,.pp-plans{grid-template-columns:repeat(2,1fr)}
+  .sg-wrap{padding:20px 16px}
+  .sec-full .inner{grid-template-columns:1fr!important}
+}
+</style>
 </head>
 <body>
 
 <nav>
-  <div class="wrap nav-inner">
-    <a class="logo" href="#">
-      <div class="logo-icon">⚡</div>
-      <div>
-        AI Ingestion Gateway
-        <span>by Elmahrosa International</span>
-      </div>
-    </a>
-    <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#how-it-works">How it works</a>
-      <a href="#pricing">Pricing</a>
-      <a href="#signup">Get API key</a>
-    </div>
-    <a class="btn btn-primary" href="#signup">Start free →</a>
+  <a href="/" class="nav-logo">// AI Ingestion Gateway</a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#trial">Free Trial</a>
+    <a href="#pay">Top Up</a>
+    <a href="#trial" class="nav-cta">Get API Key →</a>
   </div>
 </nav>
 
-<header class="hero">
-  <div class="wrap">
-    <div class="badge"><span class="badge-dot"></span> Live · 50 free URLs · No card required</div>
-    <h1>The <em>compliance-first</em> web data API for AI agents</h1>
-    <p class="hero-sub">Submit a URL. Get back clean, PII-scrubbed content. SSRF blocked. robots.txt enforced. Audit log written. Your agent stays safe.</p>
-    <div class="hero-actions">
-      <a class="btn btn-green" href="#signup">Get your free API key</a>
-      <a class="btn btn-outline" href="#how-it-works">See how it works</a>
-    </div>
-    <div class="hero-proof">
-      <span class="proof-item">50 free URLs</span>
-      <span class="proof-item">No credit card</span>
-      <span class="proof-item">Instant key via email</span>
-      <span class="proof-item">SSRF + PII + robots.txt</span>
-      <span class="proof-item">MCP ready</span>
-    </div>
+<!-- HERO -->
+<div class="hero">
+  <div class="eyebrow-sm">// Compliance-First Web Data API for AI Agents</div>
+  <h1>Ingest the web.<br/><span>Safely.</span></h1>
+  <p class="hero-sub">robots.txt enforced · PII scrubbed · SSRF blocked · full audit log · async by default. 5 free URLs, 48-hour trial. No card required.</p>
+  <div class="hero-btns">
+    <a href="#trial" class="btn-p">⚡ Get 5 Free URLs</a>
+    <a href="#features" class="btn-s">See How It Works →</a>
   </div>
-</header>
+</div>
 
-<!-- SIGNUP FORM -->
-<section class="signup-section" id="signup">
-  <div class="wrap">
-    <div class="signup-card">
-      <h2>Get your free API key</h2>
-      <p>50 URLs free. No card. Key delivered to your inbox in seconds.</p>
-
-      <div id="signup-form">
-        <div class="form-group">
-          <label>Your email</label>
-          <input type="email" id="email" placeholder="you@company.com" autocomplete="email" />
-        </div>
-        <div class="form-group">
-          <label>Plan</label>
-          <select id="plan">
-            <option value="trial">Free Trial — 50 URLs, 7 days</option>
-            <option value="starter">Starter — 500 URLs/mo · $29</option>
-            <option value="growth">Growth — 5,000 URLs/mo · $79</option>
-          </select>
-        </div>
-        <button class="btn btn-green form-submit" onclick="submitSignup()">Get API key →</button>
-        <div class="form-note">No spam. Key only. Unsubscribe anytime.</div>
-        <div class="form-error" id="form-error"></div>
-      </div>
-
-      <div class="form-success" id="form-success">
-        ✓ Check your inbox — your API key is on its way.<br/>
-        <span style="color:var(--muted);font-size:.85rem;font-weight:400">If you don't see it in 2 minutes, check spam or email <a href="mailto:ayman@teosegypt.com" style="color:var(--brand)">ayman@teosegypt.com</a></span>
-      </div>
-    </div>
-  </div>
-</section>
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat"><div class="stat-v">5</div><div class="stat-l">Free URLs</div></div>
+  <div class="stat"><div class="stat-v">48h</div><div class="stat-l">Trial Window</div></div>
+  <div class="stat"><div class="stat-v">100%</div><div class="stat-l">robots.txt</div></div>
+  <div class="stat"><div class="stat-v">0</div><div class="stat-l">PII Leaked</div></div>
+  <div class="stat"><div class="stat-v">USDC</div><div class="stat-l">+ PayPal</div></div>
+</div>
 
 <!-- FEATURES -->
-<section class="section" id="features">
-  <div class="wrap">
-    <div class="section-label">Why developers use it</div>
-    <div class="section-title">Compliance built into every request</div>
-    <p class="section-sub">Traditional scrapers give you raw data and leave compliance as your problem. AI Ingestion Gateway enforces governance at the infrastructure layer.</p>
-    <div class="features-grid">
-      <div class="feature-cell">
-        <div class="feature-icon">🛡</div>
-        <h3>SSRF protection</h3>
-        <p>Async DNS resolution blocks private IPs, loopback, metadata endpoints, and link-local addresses before any outbound fetch.</p>
+<div class="sec" id="features">
+  <div class="ey">// Why AI Ingestion Gateway</div>
+  <div class="st">Built for compliance from day one.</div>
+  <div class="feat-grid">
+    <div class="feat"><div class="feat-ico">🛡</div><div class="feat-t">SSRF Protection</div><div class="feat-d">Async DNS blocks private IPs, loopback, cloud metadata endpoints before any outbound fetch. DNS rebinding attacks blocked.</div></div>
+    <div class="feat"><div class="feat-ico">🧼</div><div class="feat-t">PII Auto-Scrubbing</div><div class="feat-d">Email, phone, SSN, IPv4, credit card — HMAC-hashed and redacted before data leaves the pipeline. Zero PII in storage.</div></div>
+    <div class="feat"><div class="feat-ico">📜</div><div class="feat-t">robots.txt Enforcement</div><div class="feat-d">Checked structurally before every fetch — not advisory. Blocked requests cost zero credits. Crawl budget enforced per domain.</div></div>
+    <div class="feat"><div class="feat-ico">⚙️</div><div class="feat-t">YAML Policy Rules</div><div class="feat-d">Per-domain allow/block rules, crawl budgets, path controls, concurrency limits — all declarative YAML config.</div></div>
+    <div class="feat"><div class="feat-ico">⚡</div><div class="feat-t">Async Job Queue</div><div class="feat-d">FastAPI + Celery + Redis. Submit a job, get a job ID in milliseconds. Poll for results. Auto-retry with backoff.</div></div>
+    <div class="feat"><div class="feat-ico">🤖</div><div class="feat-t">MCP + x402 Ready</div><div class="feat-d">Works as an MCP tool in Claude, Cursor, Windsurf. AI agents pay per-request via USDC on Base — zero signup needed.</div></div>
+  </div>
+
+  <!-- CODE -->
+  <div style="margin-top:44px">
+    <div class="code-wrap">
+      <div class="code-hdr">
+        <div class="dots"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div></div>
+        <div class="code-lbl">Quick Start</div>
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
       </div>
-      <div class="feature-cell">
-        <div class="feature-icon">🧼</div>
-        <h3>PII scrubbing</h3>
-        <p>Email, phone, SSN, IPv4, and credit card numbers are HMAC-hashed and redacted before data leaves the pipeline.</p>
-      </div>
-      <div class="feature-cell">
-        <div class="feature-icon">📜</div>
-        <h3>robots.txt enforcement</h3>
-        <p>Checked structurally before every fetch — not advisory. Blocked requests cost zero credits.</p>
-      </div>
-      <div class="feature-cell">
-        <div class="feature-icon">⚙️</div>
-        <h3>YAML policy rules</h3>
-        <p>Per-domain allow/block rules, crawl budgets, path controls, and concurrency limits — all declarative.</p>
-      </div>
-      <div class="feature-cell">
-        <div class="feature-icon">🔁</div>
-        <h3>Async job queue</h3>
-        <p>FastAPI + Celery + Redis. Submit and poll. Non-blocking. Automatic retries with backoff. State machine enforced.</p>
-      </div>
-      <div class="feature-cell">
-        <div class="feature-icon">#</div>
-        <h3>Content hashing</h3>
-        <p>SHA-256 fingerprint per job enables deduplication, change detection, and provenance for downstream AI pipelines.</p>
-      </div>
+      <pre id="qscode"><span class="tm"># 1. Submit ingestion job</span>
+<span class="tg">curl</span> <span class="tw">-X POST https://safe.teosegypt.com/v1/ingest_async</span> \
+  <span class="ta">-H</span> <span class="tw">"X-API-Key: aig_YOURKEYHERE"</span> \
+  <span class="ta">-H</span> <span class="tw">"Content-Type: application/json"</span> \
+  <span class="ta">-d</span> <span class="tw">'{"url":"https://example.com"}'</span>
+
+<span class="tm"># → {"job_id": "abc123", "status": "PENDING"}</span>
+
+<span class="tm"># 2. Poll for result</span>
+<span class="tg">curl</span> <span class="tw">https://safe.teosegypt.com/v1/jobs/abc123</span> \
+  <span class="ta">-H</span> <span class="tw">"X-API-Key: aig_YOURKEYHERE"</span>
+
+<span class="tm"># → {"status":"COMPLETED","pii_found":2,"result_excerpt":"..."}</span></pre>
     </div>
   </div>
-</section>
-
-<!-- HOW IT WORKS -->
-<section class="section" id="how-it-works">
-  <div class="wrap">
-    <div class="section-label">Pipeline</div>
-    <div class="section-title">What happens to every request</div>
-    <div class="pipeline">
-      <div><span class="step">POST /v1/ingest_async</span>  <span class="c-str">{"url": "https://example.com/page"}</span></div>
-      <div class="arrow">  ↓</div>
-      <div><span class="step">Auth + credit check</span>  <span class="c-cmt">// HMAC key · atomic Redis deduct · 402 if empty</span></div>
-      <div class="arrow">  ↓</div>
-      <div><span class="step">Rate limiter</span>  <span class="c-cmt">// per-API-key counter · 10 req/min default</span></div>
-      <div class="arrow">  ↓</div>
-      <div><span class="step">Policy engine</span>  <span class="c-cmt">// YAML rules → robots.txt → crawl budget</span>  <span class="tag-blocked">BLOCKED → 0 credits consumed</span></div>
-      <div class="arrow">  ↓</div>
-      <div><span class="step">SSRF guard</span>  <span class="c-cmt">// async DNS → block private/loopback/reserved IPs</span></div>
-      <div class="arrow">  ↓</div>
-      <div><span class="step">Safe fetch</span>  <span class="c-cmt">// httpx + circuit breaker + 5MB cap</span></div>
-      <div class="arrow">  ↓</div>
-      <div><span class="step">PII scrubber</span>  <span class="c-cmt">// email · SSN · phone · IPv4 · card → [TYPE:hash]</span></div>
-      <div class="arrow">  ↓</div>
-      <div><span class="step">Content hash</span>  <span class="c-cmt">// sha256(clean_content) stored per job</span></div>
-      <div class="arrow">  ↓</div>
-      <div><span class="step">Audit log</span>  <span class="c-cmt">// job_id · url · pii_count · content_hash · timestamp</span></div>
-      <div class="arrow">  ↓</div>
-      <div><span class="tag-ok">{"job_id": "3f8c...", "status": "PENDING"}</span>  <span class="c-cmt">// poll GET /v1/jobs/{job_id}</span></div>
-    </div>
-
-    <div class="code-block" style="margin-top:2rem">
-      <div class="code-header">
-        <div class="code-dot" style="background:#ef4444"></div>
-        <div class="code-dot" style="background:#f59e0b"></div>
-        <div class="code-dot" style="background:#22c55e"></div>
-        <span style="margin-left:.5rem">Python · quick start</span>
-      </div>
-      <pre><span class="c-key">import</span> httpx, asyncio
-
-<span class="c-key">async def</span> <span class="c-str">ingest</span>(url: str, api_key: str) -> dict:
-    <span class="c-key">async with</span> httpx.AsyncClient(
-        base_url=<span class="c-str">"https://safe.teosegypt.com"</span>,
-        headers={<span class="c-str">"X-API-Key"</span>: api_key},
-    ) <span class="c-key">as</span> client:
-        r = <span class="c-key">await</span> client.post(<span class="c-str">"/v1/ingest_async"</span>, json={<span class="c-str">"url"</span>: url})
-        job_id = r.json()[<span class="c-str">"job_id"</span>]
-
-        <span class="c-key">for</span> _ <span class="c-key">in</span> range(<span class="c-num">30</span>):
-            <span class="c-key">await</span> asyncio.sleep(<span class="c-num">2</span>)
-            result = <span class="c-key">await</span> client.get(<span class="c-str">f"/v1/jobs/{job_id}"</span>)
-            <span class="c-key">if</span> result.json()[<span class="c-str">"status"</span>] <span class="c-key">in</span> (<span class="c-str">"COMPLETED"</span>, <span class="c-str">"FAILED"</span>):
-                <span class="c-key">return</span> result.json()  <span class="c-cmt"># clean content, pii_found, content_hash</span></pre>
-    </div>
-  </div>
-</section>
+</div>
 
 <!-- PRICING -->
-<section class="section" id="pricing">
-  <div class="wrap">
-    <div class="section-label">Pricing</div>
-    <div class="section-title">Simple, usage-based pricing</div>
-    <p class="section-sub">Start free. Pay only when you need more. All plans include full compliance pipeline.</p>
-    <div class="pricing-grid">
+<div class="sec" id="pricing">
+  <div class="ey">// Pricing</div>
+  <div class="st">Pay for what you use.</div>
+  <p class="sd">Start with 5 free URLs for 48 hours — no card required. When ready, top up with USDC on Base or PayPal.</p>
+  <div class="price-grid">
 
-      <div class="price-card">
-        <span class="plan-badge free">Free trial</span>
-        <h3>Trial</h3>
-        <div class="price-amount">$0 <small>/ 7 days</small></div>
-        <p class="price-desc">Test the full pipeline with no commitment.</p>
-        <ul class="price-features">
-          <li class="highlight">50 URL credits</li>
-          <li>7-day access window</li>
-          <li>Full compliance pipeline</li>
-          <li>Instant key via email</li>
-          <li>No card required</li>
-        </ul>
-        <button class="btn-plan primary" onclick="document.getElementById('email').focus(); document.getElementById('signup').scrollIntoView({behavior:'smooth'})">Start free →</button>
-      </div>
-
-      <div class="price-card featured">
-        <span class="plan-badge popular">Most popular</span>
-        <h3>Starter</h3>
-        <div class="price-amount">$29 <small>/ mo</small></div>
-        <p class="price-desc">For developers building AI pipelines.</p>
-        <ul class="price-features">
-          <li class="highlight">500 URL credits/mo</li>
-          <li>Credits reset monthly</li>
-          <li>Full compliance pipeline</li>
-          <li>Email support</li>
-          <li>PayPal or USDC</li>
-        </ul>
-        <button class="btn-plan primary" onclick="selectPlan('starter')">Get Starter →</button>
-      </div>
-
-      <div class="price-card">
-        <span class="plan-badge growth">Growth</span>
-        <h3>Growth</h3>
-        <div class="price-amount">$79 <small>/ mo</small></div>
-        <p class="price-desc">For teams with active ingestion pipelines.</p>
-        <ul class="price-features">
-          <li class="highlight">5,000 URL credits/mo</li>
-          <li>Credits reset monthly</li>
-          <li>Full compliance pipeline</li>
-          <li>Priority provisioning</li>
-          <li>PayPal or USDC</li>
-        </ul>
-        <button class="btn-plan" onclick="selectPlan('growth')">Get Growth →</button>
-      </div>
-
-      <div class="price-card">
-        <span class="plan-badge enterprise">Enterprise</span>
-        <h3>Custom</h3>
-        <div class="price-amount" style="font-size:1.4rem">Contact us</div>
-        <p class="price-desc">Self-hosted, white-label, or acquisition.</p>
-        <ul class="price-features">
-          <li class="highlight">Unlimited credits</li>
-          <li>Self-hosted license</li>
-          <li>White-label option</li>
-          <li>Integration support</li>
-          <li>Acquisition discussions</li>
-        </ul>
-        <a class="btn-plan" href="mailto:ayman@teosegypt.com?subject=AI%20Ingestion%20Gateway%20Enterprise">Contact →</a>
-      </div>
-
+    <div class="plan">
+      <div class="plan-name">Free Trial</div>
+      <div class="plan-price"><sup>$</sup>0</div>
+      <div class="plan-per">48 hours</div>
+      <ul class="plan-feats">
+        <li>5 URL credits</li>
+        <li>All features included</li>
+        <li>No card needed</li>
+        <li>API key by email instantly</li>
+      </ul>
+      <button class="plan-btn pb-s" onclick="scrollTo('trial')">Start Free Trial</button>
     </div>
-    <p style="text-align:center;color:var(--muted);font-size:.82rem;margin-top:1.25rem">
-      Pay with PayPal to <a href="mailto:elma7rosa@gmx.com" style="color:var(--brand)">elma7rosa@gmx.com</a> · or USDC on Base: <span style="font-family:'JetBrains Mono',monospace;font-size:.75rem">0xd9CA11Dde3810a1BA9B5E1a4b6b76F5a419FAb41</span>
-    </p>
+
+    <div class="plan">
+      <div class="plan-name">Starter</div>
+      <div class="plan-price"><sup>$</sup>19</div>
+      <div class="plan-per">per month · 500 URLs</div>
+      <ul class="plan-feats">
+        <li>500 URL credits</li>
+        <li>30-day expiry</li>
+        <li>Full pipeline</li>
+        <li>Email support</li>
+      </ul>
+      <button class="plan-btn pb-s" onclick="scrollTo('pay')">Buy Now</button>
+    </div>
+
+    <div class="plan hot">
+      <div class="plan-badge">MOST POPULAR</div>
+      <div class="plan-name">Growth</div>
+      <div class="plan-price"><sup>$</sup>49</div>
+      <div class="plan-per">per month · 5,000 URLs</div>
+      <ul class="plan-feats">
+        <li>5,000 URL credits</li>
+        <li>30-day expiry</li>
+        <li>Full pipeline</li>
+        <li>Priority provisioning</li>
+      </ul>
+      <button class="plan-btn pb-p" onclick="scrollTo('pay')">Buy Now</button>
+    </div>
+
+    <div class="plan">
+      <div class="plan-name">Pro</div>
+      <div class="plan-price"><sup>$</sup>99</div>
+      <div class="plan-per">per month · 25,000 URLs</div>
+      <ul class="plan-feats">
+        <li>25,000 URL credits</li>
+        <li>30-day expiry</li>
+        <li>Priority support</li>
+        <li>Multi-tenant isolation</li>
+      </ul>
+      <button class="plan-btn pb-s" onclick="scrollTo('pay')">Buy Now</button>
+    </div>
+
+    <div class="plan">
+      <div class="plan-name">Starter Annual</div>
+      <div class="plan-price"><sup>$</sup>190</div>
+      <div class="plan-per">per year · save $38</div>
+      <ul class="plan-feats">
+        <li>500 URLs/mo · 12 months</li>
+        <li>365-day expiry</li>
+        <li>Full pipeline</li>
+        <li>2 months free</li>
+      </ul>
+      <button class="plan-btn pb-s" onclick="scrollTo('pay')">Buy Now</button>
+    </div>
+
+    <div class="plan">
+      <div class="plan-name">Growth Annual</div>
+      <div class="plan-price"><sup>$</sup>490</div>
+      <div class="plan-per">per year · save $98</div>
+      <ul class="plan-feats">
+        <li>5,000 URLs/mo · 12 months</li>
+        <li>365-day expiry</li>
+        <li>Full pipeline</li>
+        <li>2 months free</li>
+      </ul>
+      <button class="plan-btn pb-s" onclick="scrollTo('pay')">Buy Now</button>
+    </div>
+
+    <div class="plan">
+      <div class="plan-name">Pro Annual</div>
+      <div class="plan-price"><sup>$</sup>990</div>
+      <div class="plan-per">per year · save $198</div>
+      <ul class="plan-feats">
+        <li>25,000 URLs/mo · 12 months</li>
+        <li>365-day expiry</li>
+        <li>Priority support</li>
+        <li>2 months free</li>
+      </ul>
+      <button class="plan-btn pb-s" onclick="scrollTo('pay')">Buy Now</button>
+    </div>
+
+    <div class="plan" style="border-color:#334">
+      <div class="plan-name">Enterprise</div>
+      <div class="plan-price" style="font-size:28px;margin-top:8px">Custom</div>
+      <div class="plan-per">license or acquisition</div>
+      <ul class="plan-feats">
+        <li>Unlimited URLs</li>
+        <li>Self-hosted license $2,500</li>
+        <li>White-label option</li>
+        <li>Full acquisition $5,500</li>
+      </ul>
+      <a href="mailto:ayman@teosegypt.com?subject=Enterprise%20Inquiry%20-%20AI%20Ingestion%20Gateway" class="plan-btn pb-s" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Contact Us</a>
+    </div>
+
   </div>
-</section>
+</div>
+
+<!-- FREE TRIAL SIGNUP -->
+<div class="sec-full" id="trial">
+  <div class="inner" style="display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center">
+    <div>
+      <div class="ey">// Free Trial</div>
+      <div class="st">5 free URLs.<br/>No card needed.</div>
+      <p style="color:var(--muted2);line-height:1.8;font-size:15px;margin-bottom:22px">Sign up in 10 seconds. Your API key arrives by email automatically. Trial expires in 48 hours.</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted2)"><span style="color:var(--green);font-size:15px">✓</span> 5 URL credits · valid 48 hours</div>
+        <div style="display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted2)"><span style="color:var(--green);font-size:15px">✓</span> All features unlocked during trial</div>
+        <div style="display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted2)"><span style="color:var(--green);font-size:15px">✓</span> API key sent to your inbox instantly</div>
+        <div style="display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted2)"><span style="color:var(--green);font-size:15px">✓</span> No subscription, no auto-charge</div>
+      </div>
+    </div>
+    <div class="sg-wrap">
+      <label class="f-lbl">Your Name</label>
+      <input type="text" id="sName" class="f-in" placeholder="Your name"/>
+      <label class="f-lbl">Email Address</label>
+      <input type="email" id="sEmail" class="f-in" placeholder="you@example.com"/>
+      <button class="f-sub" id="sBtn" onclick="doTrial()">
+        <div class="spin" id="sSpin"></div>
+        <span id="sTxt">⚡ Get My Free API Key</span>
+      </button>
+      <div class="msg-ok" id="sOk"></div>
+      <div class="msg-err" id="sErr"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAYMENT: USDC + PAYPAL -->
+<div class="sec" id="pay">
+  <div class="ey">// Top Up Credits</div>
+  <div class="st">Pay with USDC or PayPal.</div>
+  <p class="sd">Choose your plan, send payment, submit your email and transaction reference. Credits are added manually within 1 hour.</p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:36px;align-items:start">
+
+    <!-- USDC -->
+    <div>
+      <div style="font-family:var(--font-m);font-size:10px;letter-spacing:3px;color:var(--green);margin-bottom:12px;text-transform:uppercase">Option A — USDC · Base Network</div>
+      <div class="wallet-box">
+        <div class="w-addr">0x3dbc6b72a69898a5ba0f1ec7312abf3c6272c86e</div>
+        <button class="copy-w" id="cwBtn" onclick="copyWallet()">COPY</button>
+      </div>
+      <div class="warn">⚠ Base network only — NOT Ethereum mainnet</div>
+      <div style="margin-top:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;gap:12px;align-items:flex-start"><div style="width:24px;height:24px;flex-shrink:0;border-radius:50%;background:var(--border2);font-family:var(--font-m);font-size:11px;font-weight:700;color:var(--green);display:flex;align-items:center;justify-content:center">1</div><div style="font-size:13px;color:var(--muted2)">Choose a plan amount → send exact USDC to wallet above on Base network</div></div>
+        <div style="display:flex;gap:12px;align-items:flex-start"><div style="width:24px;height:24px;flex-shrink:0;border-radius:50%;background:var(--border2);font-family:var(--font-m);font-size:11px;font-weight:700;color:var(--green);display:flex;align-items:center;justify-content:center">2</div><div style="font-size:13px;color:var(--muted2)">Submit your email + transaction hash in the form → credits added within 1 hour</div></div>
+      </div>
+
+      <!-- PAYPAL -->
+      <div class="pp-box">
+        <div class="pp-title">Option B — PayPal</div>
+        <div class="pp-plans" id="ppGrid">
+          <div class="pp-plan on" data-amt="19" onclick="ppSel(this)"><div class="pn">Starter/mo</div><div class="pp">$19</div><div class="pu">500 URLs</div></div>
+          <div class="pp-plan" data-amt="49" onclick="ppSel(this)"><div class="pn">Growth/mo</div><div class="pp">$49</div><div class="pu">5K URLs</div></div>
+          <div class="pp-plan" data-amt="99" onclick="ppSel(this)"><div class="pn">Pro/mo</div><div class="pp">$99</div><div class="pu">25K URLs</div></div>
+          <div class="pp-plan" data-amt="490" onclick="ppSel(this)"><div class="pn">Growth/yr</div><div class="pp">$490</div><div class="pu">5K/mo·12mo</div></div>
+        </div>
+        <button class="pp-btn" id="ppBtn" onclick="doPayPal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 0 0-.607-.541c-.013.076-.026.175-.041.254-.93 4.778-4.005 7.201-9.138 7.201h-2.19a.563.563 0 0 0-.556.479l-1.187 7.527h-.506l-.24 1.516a.56.56 0 0 0 .554.647h3.882c.46 0 .85-.334.922-.788.06-.26.76-4.852.816-5.09a.932.932 0 0 1 .923-.788h.58c3.76 0 6.705-1.528 7.565-5.946.36-1.847.174-3.388-.777-4.471z"/></svg>
+          Pay with PayPal — <span id="ppAmtTxt">$19</span>
+        </button>
+        <div style="font-family:var(--font-m);font-size:10px;color:var(--muted);margin-top:10px;text-align:center">Sends to elma7rosa@gmx.com · After paying, email <a href="mailto:aams1969@gmail.com" style="color:var(--green)">aams1969@gmail.com</a> with your receipt</div>
+      </div>
+    </div>
+
+    <!-- PAYMENT FORM -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:26px">
+      <div style="font-family:var(--font-m);font-size:10px;letter-spacing:2px;color:var(--green);margin-bottom:16px;text-transform:uppercase">Submit Payment → Get Credits</div>
+
+      <label class="f-lbl">Amount Sent (USDC or USD)</label>
+      <div class="pay-sel" id="payGrid">
+        <div class="ps" data-a="19" onclick="pSel(this)"><div class="ps-n">Starter</div><div class="ps-p">$19</div><div class="ps-u">500 URLs</div></div>
+        <div class="ps on" data-a="49" onclick="pSel(this)"><div class="ps-n">Growth</div><div class="ps-p">$49</div><div class="ps-u">5K URLs</div></div>
+        <div class="ps" data-a="99" onclick="pSel(this)"><div class="ps-n">Pro</div><div class="ps-p">$99</div><div class="ps-u">25K URLs</div></div>
+        <div class="ps" data-a="490" onclick="pSel(this)"><div class="ps-n">Growth/yr</div><div class="ps-p">$490</div><div class="ps-u">5K·12mo</div></div>
+      </div>
+
+      <label class="f-lbl">Your Email</label>
+      <input type="email" id="pEmail" class="f-in" placeholder="you@example.com"/>
+      <label class="f-lbl">Payment Reference</label>
+      <input type="text" id="pRef" class="f-in" placeholder="USDC tx hash or PayPal transaction ID" style="font-family:var(--font-m);font-size:11px"/>
+      <div style="font-family:var(--font-m);font-size:10px;color:var(--muted);margin-top:-10px;margin-bottom:14px">USDC: 0x... hash · PayPal: transaction ID from receipt</div>
+
+      <button class="f-sub" id="pBtn" onclick="doPayment()">
+        <div class="spin" id="pSpin"></div>
+        <span id="pTxt">⚡ Submit Payment</span>
+      </button>
+      <div class="msg-ok" id="pOk"></div>
+      <div class="msg-err" id="pErr"></div>
+    </div>
+  </div>
+</div>
 
 <footer>
-  <div class="wrap footer-inner">
-    <div style="display:flex;align-items:center;gap:.75rem">
-      <div class="logo-icon" style="width:28px;height:28px;font-size:14px;border-radius:7px">⚡</div>
-      <span style="font-weight:600;font-size:.9rem">AI Ingestion Gateway</span>
-      <span style="color:var(--faint);font-size:.8rem">by Elmahrosa International · Cairo, Egypt</span>
-    </div>
-    <div class="footer-links">
-      <a href="mailto:ayman@teosegypt.com">ayman@teosegypt.com</a>
-      <a href="https://github.com/Elmahrosa/safe-ingestion-engine" target="_blank">GitHub</a>
-      <a href="#signup">Get API key</a>
-    </div>
+  <div class="f-logo">AI Ingestion Gateway</div>
+  <div class="f-links">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#trial">Free Trial</a>
+    <a href="#pay">Top Up</a>
+    <a href="https://github.com/Elmahrosa/safe-ingestion-engine" target="_blank">GitHub</a>
+    <a href="mailto:ayman@teosegypt.com">Contact</a>
   </div>
+  <div class="f-copy">Built by Ayman Seif · Elmahrosa International · Cairo, Egypt</div>
 </footer>
 
 <script>
-  function selectPlan(plan) {
-    document.getElementById('plan').value = plan;
-    document.getElementById('signup').scrollIntoView({ behavior: 'smooth' });
-    setTimeout(() => document.getElementById('email').focus(), 600);
+const FS = 'myknnrwn';
+const WALLET = '0x3dbc6b72a69898a5ba0f1ec7312abf3c6272c86e';
+const PAYPAL_EMAIL = 'elma7rosa@gmx.com';
+const NOTIFY_EMAIL = 'sohayb2010@aol.com';
+
+const PLANS = {
+  19:'Starter Monthly - 500 URLs/mo',
+  49:'Growth Monthly - 5000 URLs/mo',
+  99:'Pro Monthly - 25000 URLs/mo',
+  190:'Starter Annual - 500 URLs/mo',
+  490:'Growth Annual - 5000 URLs/mo',
+  990:'Pro Annual - 25000 URLs/mo'
+};
+
+function scrollTo(id){ document.getElementById(id).scrollIntoView({behavior:'smooth'}); }
+
+// ── TRIAL SIGNUP ─────────────────────────────────────────────────────
+async function doTrial() {
+  const name  = document.getElementById('sName').value.trim();
+  const email = document.getElementById('sEmail').value.trim();
+  const btn   = document.getElementById('sBtn');
+  const spin  = document.getElementById('sSpin');
+  const txt   = document.getElementById('sTxt');
+  const ok    = document.getElementById('sOk');
+  const err   = document.getElementById('sErr');
+  ok.style.display = err.style.display = 'none';
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    err.textContent = '⚠ Please enter a valid email address.';
+    err.style.display = 'block'; return;
   }
 
-  const PLAN_LABELS = {
-    trial: 'Free Trial - 50 URLs',
-    starter: 'Starter - 500 URLs/mo - $29',
-    growth: 'Growth - 5000 URLs/mo - $79'
-  };
+  btn.disabled = true; spin.style.display = 'block'; txt.textContent = 'Sending...';
 
-  async function submitSignup() {
-    const email = document.getElementById('email').value.trim();
-    const plan = document.getElementById('plan').value;
-    const errEl = document.getElementById('form-error');
-    const btn = document.querySelector('.form-submit');
+  const expiry = new Date(Date.now() + 48*3600*1000).toUTCString();
+  let sent = false;
 
-    errEl.style.display = 'none';
+  try {
+    const r = await fetch(`https://formspree.io/f/${FS}`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        name: name || 'New user',
+        email,
+        plan: 'Free Trial - 5 URLs - 48 hours',
+        trial_expires: expiry,
+        _subject: `[TRIAL SIGNUP] AI Ingestion Gateway — ${email}`,
+        _replyto: email,
+      })
+    });
+    if (r.ok) sent = true;
+  } catch(e){}
 
-    if (!email || !email.includes('@')) {
-      errEl.textContent = 'Please enter a valid email address.';
-      errEl.style.display = 'block';
-      return;
-    }
-
-    btn.textContent = 'Sending...';
-    btn.disabled = true;
-
-    // ── Try Formspree first (free tier, 50 submissions/mo, no setup needed) ──
-    // Replace YOUR_FORMSPREE_ID with the ID from formspree.io after creating a form
-    const FORMSPREE_ID = 'myknnrwn';
-
-    // ── Try GAS webhook if deployed ──
-    const GAS_URL = 'YOUR_GAS_WEBHOOK_URL';
-
-    let sent = false;
-
-    // Try GAS if configured
-    if (GAS_URL !== 'YOUR_GAS_WEBHOOK_URL') {
-      try {
-        await fetch(GAS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, plan }),
-          mode: 'no-cors'
-        });
-        sent = true;
-      } catch (e) {}
-    }
-
-    // Try Formspree if configured
-    if (!sent && FORMSPREE_ID !== 'YOUR_FORMSPREE_ID') {
-      try {
-        const r = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, plan: PLAN_LABELS[plan], _subject: 'New API Key Request - AI Ingestion Gateway' })
-        });
-        if (r.ok) sent = true;
-      } catch (e) {}
-    }
-
-    // Fallback: open mailto so you at least get the request
-    if (!sent) {
-      const subject = encodeURIComponent('API Key Request - AI Ingestion Gateway');
-      const body = encodeURIComponent(`New signup request:\n\nEmail: ${email}\nPlan: ${PLAN_LABELS[plan]}\n\nPlease provision a key and reply to this email.`);
-      window.open(`mailto:ayman@teosegypt.com?subject=${subject}&body=${body}`);
-    }
-
-    // Always show success — you will receive the request one way or another
-    document.getElementById('signup-form').style.display = 'none';
-    document.getElementById('form-success').style.display = 'block';
+  if (!sent) {
+    const s = encodeURIComponent(`[TRIAL] AI Ingestion Gateway — ${email}`);
+    const b = encodeURIComponent(`Name: ${name}\nEmail: ${email}\nPlan: Free Trial - 5 URLs\nExpires: ${expiry}\n\nPlease send API key.`);
+    window.open(`mailto:${NOTIFY_EMAIL}?subject=${s}&body=${b}`);
   }
 
-  document.getElementById('email').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') submitSignup();
+  ok.innerHTML = '<strong style="color:var(--green)">✔ Check your inbox!</strong><br/>Your API key is on its way. If you don\'t see it within 5 minutes, check spam or email <a href="mailto:aams1969@gmail.com" style="color:var(--green)">aams1969@gmail.com</a>';
+  ok.style.display = 'block';
+  document.getElementById('sName').value = '';
+  document.getElementById('sEmail').value = '';
+  btn.disabled = false; spin.style.display = 'none'; txt.textContent = '⚡ Get My Free API Key';
+}
+
+// ── PAYMENT FORM ─────────────────────────────────────────────────────
+let selAmt = 49;
+
+function pSel(el) {
+  document.querySelectorAll('.ps').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  selAmt = parseInt(el.dataset.a);
+}
+
+async function doPayment() {
+  const email = document.getElementById('pEmail').value.trim();
+  const ref   = document.getElementById('pRef').value.trim();
+  const btn   = document.getElementById('pBtn');
+  const spin  = document.getElementById('pSpin');
+  const txt   = document.getElementById('pTxt');
+  const ok    = document.getElementById('pOk');
+  const err   = document.getElementById('pErr');
+  ok.style.display = err.style.display = 'none';
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    err.textContent = '⚠ Please enter a valid email address.';
+    err.style.display = 'block'; return;
+  }
+  if (!ref || ref.length < 8) {
+    err.textContent = '⚠ Please enter your payment reference (USDC tx hash or PayPal transaction ID).';
+    err.style.display = 'block'; return;
+  }
+
+  btn.disabled = true; spin.style.display = 'block'; txt.textContent = 'Submitting...';
+
+  let sent = false;
+  try {
+    const r = await fetch(`https://formspree.io/f/${FS}`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        email,
+        plan: PLANS[selAmt] || `$${selAmt}`,
+        amount: `$${selAmt} USDC/USD`,
+        payment_ref: ref,
+        _subject: `[PAYMENT $${selAmt}] AI Ingestion Gateway — ${email}`,
+        _replyto: email,
+      })
+    });
+    if (r.ok) sent = true;
+  } catch(e){}
+
+  if (!sent) {
+    const s = encodeURIComponent(`[PAYMENT $${selAmt}] AI Ingestion Gateway — ${email}`);
+    const b = encodeURIComponent(`Email: ${email}\nPlan: ${PLANS[selAmt]}\nAmount: $${selAmt}\nRef: ${ref}\n\nPlease add credits.`);
+    window.open(`mailto:${NOTIFY_EMAIL}?subject=${s}&body=${b}`);
+  }
+
+  ok.innerHTML = `<strong style="color:var(--green)">✔ Payment received!</strong><br/>Credits will be added to your account within 1 hour. We'll email you at <strong>${email}</strong> when done.`;
+  ok.style.display = 'block';
+  document.getElementById('pRef').value = '';
+  btn.disabled = false; spin.style.display = 'none'; txt.textContent = '⚡ Submit Payment';
+}
+
+// ── PAYPAL ───────────────────────────────────────────────────────────
+let ppAmt = 19;
+
+function ppSel(el) {
+  document.querySelectorAll('.pp-plan').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  ppAmt = parseInt(el.dataset.amt);
+  document.getElementById('ppAmtTxt').textContent = '$' + ppAmt;
+}
+
+function doPayPal() {
+  const note = encodeURIComponent(`AI Ingestion Gateway - ${PLANS[ppAmt] || '$'+ppAmt}`);
+  window.open(`https://www.paypal.com/paypalme/elma7rosa/${ppAmt}USD?note=${note}`, '_blank');
+}
+
+// ── UTILS ────────────────────────────────────────────────────────────
+function copyWallet() {
+  navigator.clipboard.writeText(WALLET).then(()=>{
+    const b = document.getElementById('cwBtn');
+    b.textContent = 'COPIED!';
+    setTimeout(()=>b.textContent='COPY', 2000);
   });
-</script>
+}
 
+function copyCode(btn) {
+  navigator.clipboard.writeText(document.getElementById('qscode').innerText).then(()=>{
+    btn.textContent = 'COPIED!';
+    setTimeout(()=>btn.textContent='COPY', 2000);
+  });
+}
+
+document.getElementById('sEmail').addEventListener('keydown', e=>{ if(e.key==='Enter') doTrial(); });
+</script>
 </body>
 </html>
