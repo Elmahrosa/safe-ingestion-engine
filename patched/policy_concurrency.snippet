@@ -1,0 +1,31 @@
+class DomainConcurrencyService:
+    def __init__(self, redis_client: redis.Redis):
+        self.redis = redis_client
+
+    def acquire(self, domain: str, max_concurrent: int) -> bool:
+        """Atomically acquire a concurrency slot. Race-free via WATCH/MULTI/EXEC."""
+        key = f"concurrent:{domain}"
+        with self.redis.pipeline() as pipe:
+            while True:
+                try:
+                    pipe.watch(key)
+                    current = int(pipe.get(key) or 0)
+                    if current >= max_concurrent:
+                        pipe.unwatch()
+                        return False
+                    pipe.multi()
+                    pipe.incr(key)
+                    pipe.expire(key, 300)
+                    pipe.execute()
+                    return True
+                except redis.WatchError:
+                    continue
+
+    def release(self, domain: str) -> None:
+        """Decrement slot count, never below 0 (Lua for atomicity)."""
+        key = f"concurrent:{domain}"
+        lua = """
+local v = tonumber(redis.call('get', KEYS[1]) or '0')
+if v > 0 then redis.call('decr', KEYS[1]) end
+"""
+        self.redis.eval(lua, 1, key)

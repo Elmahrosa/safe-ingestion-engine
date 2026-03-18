@@ -1,0 +1,6 @@
+def stable_hash(value: str) -> str:
+    return hmac.new(
+        settings.pii_salt.encode("utf-8"),
+        msg=value.encode("utf-8"),
+        digestmod=hashlib.sha256,
+    ).hexdigest()
